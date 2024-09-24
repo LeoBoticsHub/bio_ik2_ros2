@@ -115,6 +115,7 @@ struct BioIKKinematicsPlugin : kinematics::KinematicsBase {
   mutable std::vector<Frame> tipFrames;
   RobotInfo robot_info;
   bool enable_profiler;
+  bool always_return_approximate_ik;
 
   BioIKKinematicsPlugin() { enable_profiler = false; }
 
@@ -193,6 +194,9 @@ struct BioIKKinematicsPlugin : kinematics::KinematicsBase {
       tip_frames_ = tips2;
 
     link_names = tip_frames_;
+
+    // override KinematicQueryOption flag
+    getRosParam("always_return_approximate_ik", always_return_approximate_ik, false);
 
     // bool enable_profiler;
     getRosParam("profiler", enable_profiler, false);
@@ -581,7 +585,7 @@ struct BioIKKinematicsPlugin : kinematics::KinematicsBase {
 
     // return an error if an accurate solution was requested, but no accurate
     // solution was found
-    if (!ik->getSuccess() && !options.return_approximate_solution) {
+    if (!ik->getSuccess() && !options.return_approximate_solution && !always_return_approximate_ik) {
       error_code.val = error_code.NO_IK_SOLUTION;
       return false;
     }
