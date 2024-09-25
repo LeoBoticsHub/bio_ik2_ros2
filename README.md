@@ -1,5 +1,19 @@
 # bio_ik
 
+Outline:
+- [Disclaimer](#disclaimer)
+- [Installation and Setup](#installation-and-setup)
+- [Basic Usage](#basic-usage)
+- [Advanced Usage](#advanced-usage)
+  - [Using IKCostFn](#using-ikcostfn)
+  - [Using BioIKKinematicsQueryOptions](#using-bioikkinematicsqueryoptions)
+- [Local vs. Global Optimization, Redundancy Resolution, Cartesian Jogging](#local-vs-global-optimization-redundancy-resolution-cartesian-jogging)
+  - [Disabling Global Optimization](#disabling-global-optimization)
+  - [Regularization](#regularization)
+- [How it works](#how-it-works)
+- [References](#references)
+- [Links](#links)
+
 ## Disclaimer
 
 This repository provides a BSD-licensed standalone implementation
@@ -23,7 +37,7 @@ See below for version specific instructions.
 * Run `colcon build --mixin release` to compile your workspace:
   ```
     cd <PATH TO WORKSPACE>/src
-    git clone -b ros2 https://github.com/TAMS-Group/bio_ik.git
+    git clone -b ros2 git@github.com:LeoBoticsHub/bio_ik2_ros2.git
     cd ..
     colcon build --mixin release
   ```
@@ -36,7 +50,7 @@ See below for version specific instructions.
   the sources including a few private header files are in the `src` subdirectory.
 
 
-## Basic Usage
+## Basic Usage 
 
 For ease of use and compatibility with existing code,
 the bio_ik algorithm is encapsulated as a Moveit kinematics plugin.
@@ -195,6 +209,9 @@ individual *goals*.
 The algorithm then tries to find a robot configuration
 that fulfills all given goals simultaneously by minimizing
 a quadratic error function built from the weighted individual goals.
+
+### Using IKCostFn
+
 While the current Moveit API does not support specifying the various derivations of bio_ik's `Goal` type directly (doing so would require creating a circular dependency),
 one may specify an instance of [`kinematics::KinematicsBase::IKCostFn`](https://github.com/ros-planning/moveit2/blob/1d67b519e6ef9ca1ebba494743791da998b72950/moveit_core/kinematics_base/include/moveit/kinematics_base/kinematics_base.h#L158) when querying for IK solutions. 
 In bio_ik, this cost function gets converted to a `IKCostFnGoal` type when the proper overload of `searchPositionIK` is called. 
@@ -230,7 +247,60 @@ Note that such a goal will create a trade-off between position accuracy and mani
   current_state->setFromIK(joint_model_group, target_pose, 0.05, callback_fn, opts, sing_avoid_cost);
 ```
 
-Alternatively, one may specify multiple goals via the `BioIKKinematicsQueryOptions`, which inherits from 
+In the **Leo Lab** we created a class to define custom goals and use them in the IKCostFn. This class is defined in `custom_goals.hpp` and the methods in `custom_goals.cpp`. Following the defined structure it is possible to define new custom goals (remeber to define the corresponding weights!). To use the custom goals:
+```c++
+    // When computing IK solutions for goal poses, we can specify a cost function that will be used to evaluate the “fitness” for a particular solution. To start, we’ll create three pointers that references the current robot’s state. RobotState is the object that contains all the current position/velocity/acceleration data. By making three copies, we can test the difference between IK calls that do/don’t include cost functions
+    moveit::core::RobotStatePtr current_state = move_group.getCurrentState(10);
+    moveit::core::RobotStatePtr copy_state_l2 = move_group.getCurrentState(10);
+    moveit::core::RobotStatePtr copy_state_manip = move_group.getCurrentState(10);
+
+    // store the starting joint positions
+    std::vector<double> start_joint_positions;
+    current_state->copyJointGroupPositions(joint_model_group, start_joint_positions);
+
+    // Set a target pose that we would like to solve IK for
+    geometry_msgs::msg::Pose target_pose;
+    target_pose.position.x = -0.395; 
+    target_pose.position.y = -0.786;
+    target_pose.position.z = 1.540;
+    target_pose.orientation.w = 0.315;
+    target_pose.orientation.x = -0.005;
+    target_pose.orientation.y = -0.034;
+    target_pose.orientation.z = 0.948;
+
+    moveit::core::GroupStateValidityCallbackFn callback_fn;
+
+    // Cost functions usually require one to accept approximate IK solutions (putting it to false will make the cost function not work)
+    kinematics::KinematicsQueryOptions opts;
+    opts.return_approximate_solution = true;
+    
+    // Instantiate CustomGoal
+    CustomGoal custom_goal(0.0001, 0.0001); // weight_l2_norm, weight_manip 
+
+    const auto cost_fn_ik_l2 = [&custom_goal](const geometry_msgs::msg::Pose& goal_pose,
+                                           const moveit::core::RobotState& solution_state,
+                                           moveit::core::JointModelGroup const* jmg,
+                                           const std::vector<double>& seed_state) {
+        return custom_goal.cost_fn_l2_norm(goal_pose, solution_state, jmg, seed_state);
+    };
+
+    const auto cost_fn_ik_manip = [&custom_goal](const geometry_msgs::msg::Pose& goal_pose,
+                                           const moveit::core::RobotState& solution_state,
+                                           moveit::core::JointModelGroup const* jmg,
+                                           const std::vector<double>& seed_state) {
+        return custom_goal.cost_fn_manip(goal_pose, solution_state, jmg, seed_state);
+    };
+
+    // request an IK solution 3 times for the same pose. Twice with a cost function, and once without.
+    current_state->setFromIK(joint_model_group, target_pose, 0.005 /* timeout */, callback_fn, opts);
+    copy_state_l2->setFromIK(joint_model_group, target_pose, 0.005 /* timeout */, callback_fn, opts, cost_fn_ik_l2);
+    copy_state_manip->setFromIK(joint_model_group, target_pose, 0.005 /* timeout */, callback_fn, opts, cost_fn_ik_manip);
+
+```
+
+### Using BioIKKinematicsQueryOptions
+
+Alternatively to the use of `IKCostFn`, one may specify multiple goals via the `BioIKKinematicsQueryOptions`, which inherits from 
 MoveIt's `KinematicsQueryOptions`. Note that the recommended way to specify goals is in the form of an `IKCostFn`.
 bio_ik provides a set of predefined motion goals,
 and a combination of the user-specified goals may be passed to the IK solver.
@@ -247,7 +317,6 @@ The predefined goals include:
 * *FunctionGoal*: an arbitrary function of the robot joint values,
    e.g. to model underactuated joints or mimic joints
 * and several more
-
 
 
 To solve a motion problem on your robot, the trick now is to construct

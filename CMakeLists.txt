@@ -91,6 +91,7 @@ set(SOURCES
     src/ik_gradient.cpp
     src/ik_evolution_1.cpp
     src/ik_evolution_2.cpp
+    src/custom_goals.cpp
 )
 
 if(USE_FANN)
