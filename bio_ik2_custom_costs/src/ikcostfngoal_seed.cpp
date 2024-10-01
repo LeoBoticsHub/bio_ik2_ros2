@@ -50,7 +50,7 @@ IKCostFnGoalSeed::IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 	setWeight(weight);
 }
 
-double IKCostFnGoalSeed::evaluate(const GoalContext &context) const  {
+double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
 
 	auto info = context.getRobotInfo();
 	moveit::core::RobotState robot_state(robot_model_);
@@ -65,4 +65,20 @@ double IKCostFnGoalSeed::evaluate(const GoalContext &context) const  {
 	robot_state.setJointGroupPositions(&jmg, sol_positions);
 	robot_state.update();
 	return function_(pose_, robot_state, &jmg, seed_state_);
+}
+
+MinimalDisplacementGoalSeed::MinimalDisplacementGoalSeed(const std::vector<double> &seed_state,
+														 double weight, bool secondary)
+	: seed_state_(seed_state) {
+	weight_ = weight;
+	secondary_ = secondary;
+}
+
+double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
+	double sum = 0.0;
+	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+		double d = context.getProblemVariablePosition(i) - seed_state_[i];
+		sum += d * d;
+	}
+	return sum * weight_;
 }

@@ -1,8 +1,8 @@
 #include "custom_goals.hpp"
 
 // Constructor definition
-CustomGoal::CustomGoal(double weight_l2_norm, double weight_manip)
-    : weight_l2_norm(weight_l2_norm), weight_manip(weight_manip) {}
+CustomGoal::CustomGoal(std::vector<double> seed_state, double weight_l2_norm, double weight_manip)
+    : seed_state(seed_state), weight_l2_norm(weight_l2_norm), weight_manip(weight_manip) {}
 
 /////////////////////////////////////////////////////////////
 // Cost Functions for the custom goals used in the IK call //
@@ -12,10 +12,10 @@ CustomGoal::CustomGoal(double weight_l2_norm, double weight_manip)
 double CustomGoal::cost_fn_l2_norm(const geometry_msgs::msg::Pose& /*goal_pose*/,
                         const moveit::core::RobotState& solution_state,
                         const moveit::core::JointModelGroup* jmg,
-                        const std::vector<double>& initial_guess) const {
+                        const std::vector<double>& /*initial_guess*/) const {
     std::vector<double> proposed_joint_positions;
     solution_state.copyJointGroupPositions(jmg, proposed_joint_positions);
-    double cost = compute_l2_norm(proposed_joint_positions, initial_guess);
+    double cost = compute_l2_norm(proposed_joint_positions, seed_state);
     return weight_l2_norm * cost;
 }
 

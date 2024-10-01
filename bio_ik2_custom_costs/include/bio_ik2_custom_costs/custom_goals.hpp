@@ -9,14 +9,16 @@
 #include <Eigen/Dense>
 
 class CustomGoal {
-public:
 
+private:
     // weight of the cost functions
     double weight_l2_norm = 0;
     double weight_manip = 0;
-   
+    std::vector<double> seed_state;
+
+public:  
     // Constructor to initialize the weights
-    CustomGoal(double weight_l2_norm = 0.0, double weight_manip = 0.0);
+    CustomGoal(std::vector<double> seed_state, double weight_l2_norm = 0.0, double weight_manip = 0.0);
     
     /////////////////////////////////////////////////////////////
     // Cost Functions for the custom goals used in the IK call //

@@ -46,13 +46,22 @@ class IKCostFnGoalSeed : public Goal {
 	const std::vector<double> seed_state_;
 
 public:
-
 	IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 					 const kinematics::KinematicsBase::IKCostFn &function,
 					 const moveit::core::RobotModelConstPtr &robot_model,
 					 const std::vector<double> &seed_state,
 					 double weight = 1.0);
 
-	double evaluate(const GoalContext &context) const override ;
+	double evaluate(const GoalContext &context) const override;
 };
+
+class MinimalDisplacementGoalSeed : public Goal {
+private:
+	const std::vector<double> seed_state_;
+
+public:
+	MinimalDisplacementGoalSeed(const std::vector<double>& seed_state, double weight = 1.0, bool secondary = true);
+	double evaluate(const GoalContext &context) const;
+};
+
 } // namespace bio_ik
