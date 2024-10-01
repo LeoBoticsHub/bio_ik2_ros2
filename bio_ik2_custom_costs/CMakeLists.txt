@@ -19,6 +19,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
     tf2_kdl
     tf2_geometry_msgs
 )
+find_package(bio_ik REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
     find_package(${Dependency} REQUIRED)
@@ -31,22 +32,24 @@ include_directories(
     ${EIGEN3_INCLUDE_DIRS}
 )
 
-# Add library
-set(HEADER_FILES include/${PROJECT_NAME}/custom_goals.hpp)
-add_library(custom_goals src/custom_goals.cpp ${HEADER_FILES})
-
-ament_export_targets(custom_goals HAS_LIBRARY_TARGET)
-
-install(
-	DIRECTORY include/${PROJECT_NAME}
-	DESTINATION include
-)
+# Add libraries
+add_library(custom_goals 
+    src/custom_goals.cpp include/${PROJECT_NAME}/custom_goals.hpp
+    src/ikcostfngoal_seed.cpp include/${PROJECT_NAME}/ikcostfngoal_seed.hpp)
 
 # Link libraries
 ament_target_dependencies(
     custom_goals
     PUBLIC
     ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+target_link_libraries(custom_goals PUBLIC bio_ik::bio_ik_plugin)
+
+ament_export_targets(custom_goals HAS_LIBRARY_TARGET)
+
+install(
+	DIRECTORY include/${PROJECT_NAME}
+	DESTINATION include
 )
 
 # Install executables

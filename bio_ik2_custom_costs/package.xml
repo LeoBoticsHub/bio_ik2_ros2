@@ -9,6 +9,7 @@
 	<license>License Leonardo</license>
 
 	<buildtool_depend>ament_cmake</buildtool_depend>
+	<build_depend>bio_ik</build_depend>
 
 	<depend>rclcpp</depend>
 	<depend>geometry_msgs</depend>
