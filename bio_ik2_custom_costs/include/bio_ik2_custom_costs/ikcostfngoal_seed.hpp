@@ -81,15 +81,18 @@ public:
 };
 
 // MaxManipulabilityGoal tries to maximize the manipulability 
+// if svd == true, the singular value decomposition is used to compute the manipulability:
 // Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
 // As this cost will be minimized and we want to maximize manipulability, we return the condition number*weight
 // A high inverse of the condition number means a high manipulability -> a low condition number implies a high manipulability
+// If svd == false, the manipulability is computed as the square root of the determinant of the Jacobian times its transpose and its inverse is minimized
 class MaxManipulabilityGoal : public Goal {
 private:
-	const moveit::core::RobotState solution_state_;
+	const Eigen::MatrixXd jacobian_;
+	 bool svd_;
 
 public:
-	MaxManipulabilityGoal(const moveit::core::RobotState& solution_state, double weight = 1.0);
+	MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight = 1.0);
 	double evaluate(const GoalContext &context) const;
 };
 

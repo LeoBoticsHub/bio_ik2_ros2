@@ -102,28 +102,46 @@ double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 	return sum;
 }
 
-MaxManipulabilityGoal::MaxManipulabilityGoal(const moveit::core::RobotState& solution_state, double weight)
-	: solution_state_(solution_state){
+MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight)
+	: jacobian_(jacobian),
+	svd_(svd){
 	weight_ = weight;
 }
 
 double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 	Eigen::VectorXd singular_values;
     double condition_number = 0;
+	double sum = 0.0;	
+	double min_sv = 0.0;
 
-	auto jmg = context.getJointModelGroup();
-	
-	// compute the jacobian
-	auto jacobian = solution_state_.getJacobian(&jmg);
+	if (svd_){
+		// compute the singular values of the Jacobian
+		Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_, Eigen::ComputeThinU | Eigen::ComputeThinV);
+		singular_values = svd.singularValues();
 
-	// compute the singular values of the Jacobian
-	Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
-	singular_values = svd.singularValues();
+		// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
+		if (singular_values.minCoeff() == 0) {
+			min_sv = 1e-6;
+		} else
+		{
+			min_sv = singular_values.minCoeff();
+		}
 
-	// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
-	condition_number = singular_values.maxCoeff() / singular_values.minCoeff();
+		condition_number = singular_values.maxCoeff() / min_sv;
+		condition_number *= weight_;
+		sum += condition_number * condition_number;
 
-	return condition_number * weight_ * weight_; // two times * weight_ to be consistent with the definition of the other goals
+		return sum;
+	} else
+	{
+		// Compute the manipulability
+		double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
+		if (manipulability == 0) {
+			manipulability = 1e-6;
+		}
+
+		return (weight_ * weight_)/ manipulability;
+	}
 }
 
 
