@@ -64,4 +64,15 @@ public:
 	double evaluate(const GoalContext &context) const;
 };
 
+class ConfigureElbowGoal : public Goal {
+private:
+const double lower_limit_;
+const double upper_limit_;
+const int joint_elbow_index_;
+
+public:
+ConfigureElbowGoal(const int joint_elbow_index, const double lower_limit, const double upper_limit, double weight = 1.0);
+double evaluate(const GoalContext &context) const;
+};
+
 } // namespace bio_ik

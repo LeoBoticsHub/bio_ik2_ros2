@@ -82,3 +82,22 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 	}
 	return sum * weight_;
 }
+
+ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit, 
+double upper_limit, double weight)
+: joint_elbow_index_(joint_elbow_index), 
+lower_limit_(lower_limit), 
+upper_limit_(upper_limit) {
+weight_ = weight;
+}
+
+double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
+double sum = 0.0;
+double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
+d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
+d *= weight_;
+sum += d * d;
+
+return sum;
+}
+
