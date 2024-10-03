@@ -84,20 +84,48 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 }
 
 ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit, 
-double upper_limit, double weight)
-: joint_elbow_index_(joint_elbow_index), 
-lower_limit_(lower_limit), 
-upper_limit_(upper_limit) {
-weight_ = weight;
+									   double upper_limit, double weight)
+	: joint_elbow_index_(joint_elbow_index), 
+	lower_limit_(lower_limit), 
+	upper_limit_(upper_limit) {
+	weight_ = weight;
 }
 
 double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
-double sum = 0.0;
-double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
-d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
-d *= weight_;
-sum += d * d;
+	double sum = 0.0;	
 
-return sum;
+	double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
+	d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
+	d *= weight_;
+	sum += d * d;
+
+	return sum;
 }
+
+MaxManipulabilityGoal::MaxManipulabilityGoal(const moveit::core::RobotState& solution_state, double weight)
+	: solution_state_(solution_state){
+	weight_ = weight;
+}
+
+double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
+	Eigen::VectorXd singular_values;
+    double condition_number = 0;
+
+	auto jmg = context.getJointModelGroup();
+	
+	// compute the jacobian
+	auto jacobian = solution_state_.getJacobian(&jmg);
+
+	// compute the singular values of the Jacobian
+	Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	singular_values = svd.singularValues();
+
+	// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
+	condition_number = singular_values.maxCoeff() / singular_values.minCoeff();
+
+	return condition_number * weight_ * weight_; // two times * weight_ to be consistent with the definition of the other goals
+}
+
+
+
 

@@ -64,15 +64,33 @@ public:
 	double evaluate(const GoalContext &context) const;
 };
 
+
+// ConfigureElbowGoal tries to keep the elbow joint in the center half of the specified joint limits
+// If the elbow joint is in the center of the specified joint limits ((upper_limit_ + lower_limit_) * 0.5) , the cost is 0
+// If the elbow joint is at the upper or lower limit, the cost is proportional to the distance from the center
+// The result is double and reduced by the half-span of the joint's range ((upper_limit_ - lower_limit_) * 0.5). This operation centers the deviation around zero.
 class ConfigureElbowGoal : public Goal {
 private:
-const double lower_limit_;
-const double upper_limit_;
-const int joint_elbow_index_;
+	const double lower_limit_;
+	const double upper_limit_;
+	const int joint_elbow_index_;
 
 public:
-ConfigureElbowGoal(const int joint_elbow_index, const double lower_limit, const double upper_limit, double weight = 1.0);
-double evaluate(const GoalContext &context) const;
+	ConfigureElbowGoal(const int joint_elbow_index, const double lower_limit, const double upper_limit, double weight = 1.0);
+	double evaluate(const GoalContext &context) const;
+};
+
+// MaxManipulabilityGoal tries to maximize the manipulability 
+// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
+// As this cost will be minimized and we want to maximize manipulability, we return the condition number*weight
+// A high inverse of the condition number means a high manipulability -> a low condition number implies a high manipulability
+class MaxManipulabilityGoal : public Goal {
+private:
+	const moveit::core::RobotState solution_state_;
+
+public:
+	MaxManipulabilityGoal(const moveit::core::RobotState& solution_state, double weight = 1.0);
+	double evaluate(const GoalContext &context) const;
 };
 
 } // namespace bio_ik
