@@ -60,10 +60,9 @@ private:
 	const std::vector<double> seed_state_;
 
 public:
-	MinimalDisplacementGoalSeed(const std::vector<double>& seed_state, double weight = 1.0, bool secondary = true);
+	MinimalDisplacementGoalSeed(const std::vector<double> &seed_state, double weight = 1.0, bool secondary = true);
 	double evaluate(const GoalContext &context) const;
 };
-
 
 // ConfigureElbowGoal tries to keep the elbow joint in the center half of the specified joint limits
 // If the elbow joint is in the center of the specified joint limits ((upper_limit_ + lower_limit_) * 0.5) , the cost is 0
@@ -80,7 +79,7 @@ public:
 	double evaluate(const GoalContext &context) const;
 };
 
-// MaxManipulabilityGoal tries to maximize the manipulability 
+// MaxManipulabilityGoal tries to maximize the manipulability
 // if svd == true, the singular value decomposition is used to compute the manipulability:
 // Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
 // As this cost will be minimized and we want to maximize manipulability, we return the condition number*weight
@@ -89,11 +88,61 @@ public:
 class MaxManipulabilityGoal : public Goal {
 private:
 	const Eigen::MatrixXd jacobian_;
-	 bool svd_;
+	bool svd_;
 
 public:
 	MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight = 1.0);
 	double evaluate(const GoalContext &context) const;
+};
+
+/**
+ * @brief This goal combines multiple goals at once
+ */
+class MultipleGoalsAtOnce : public Goal {
+private:
+	// minimal displacement goal with respect to the given seed (current robot state)
+	bool apply_minimal_displacement_goal_;
+	// linear cost to prefer solutions in the joints center and avoid joint limits
+	bool apply_avoid_joint_limits_goal_;
+	// cost to enforce virtual hard limits on one joint, to prevent strange solutions
+	bool apply_hard_limits_goal_;
+	// cost to enable the manipulability goal
+	bool apply_manipulability_goal_;
+
+	// Jacobian matrix
+	Eigen::MatrixXd jacobian_;
+
+	// weights for the goals
+	double w_manipulability_;
+	double w_minimum_displacement_;
+	double w_avoid_joint_limits_;
+	double w_hard_limits_;
+
+	// hard limits goal parameters
+	double lower_limit_;
+	double upper_limit_;
+	int joint_elbow_index_;
+
+public:
+	/**
+	 * @brief Constructor for the MultipleGoalsAtOnce class
+	 */
+	MultipleGoalsAtOnce();
+
+	void applyMinimalDisplacementGoal(double weight = 1.0);
+
+	void applyAvoidJointLimitsGoal(double weight = 1.0);
+
+	void applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight = 1.0);
+
+	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
+
+	/**
+	 * @brief Evaluate the cost of the goals and sum them up
+	 * @param context - the goal context
+	 * @return the cost of the goals
+	 */
+	double evaluate(const bio_ik::GoalContext &context) const override;
 };
 
 } // namespace bio_ik

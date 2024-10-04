@@ -83,16 +83,17 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 	return sum * weight_;
 }
 
-ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit, 
+ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit,
 									   double upper_limit, double weight)
-	: joint_elbow_index_(joint_elbow_index), 
-	lower_limit_(lower_limit), 
-	upper_limit_(upper_limit) {
+	: lower_limit_(lower_limit),
+	  upper_limit_(upper_limit),
+	  joint_elbow_index_(joint_elbow_index) {
+	secondary_ = true;
 	weight_ = weight;
 }
 
 double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
-	double sum = 0.0;	
+	double sum = 0.0;
 
 	double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
 	d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
@@ -104,17 +105,18 @@ double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 
 MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight)
 	: jacobian_(jacobian),
-	svd_(svd){
+	  svd_(svd) {
 	weight_ = weight;
+	secondary_ = true;
 }
 
 double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 	Eigen::VectorXd singular_values;
-    double condition_number = 0;
-	double sum = 0.0;	
+	double condition_number = 0;
+	double sum = 0.0;
 	double min_sv = 0.0;
 
-	if (svd_){
+	if (svd_) {
 		// compute the singular values of the Jacobian
 		Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		singular_values = svd.singularValues();
@@ -122,8 +124,7 @@ double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 		// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
 		if (singular_values.minCoeff() == 0) {
 			min_sv = 1e-6;
-		} else
-		{
+		} else {
 			min_sv = singular_values.minCoeff();
 		}
 
@@ -132,18 +133,141 @@ double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 		sum += condition_number * condition_number;
 
 		return sum;
-	} else
-	{
+	} else {
 		// Compute the manipulability
 		double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
 		if (manipulability == 0) {
 			manipulability = 1e-6;
 		}
 
-		return (weight_ * weight_)/ manipulability;
+		return (weight_ * weight_) / manipulability;
 	}
 }
 
+/**
+ * @brief Constructor for the MultipleGoalsAtOnce class
+ */
+MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
+	secondary_ = true;
+	apply_avoid_joint_limits_goal_ = false;
+	apply_minimal_displacement_goal_ = false;
+	apply_hard_limits_goal_ = false;
+	apply_manipulability_goal_ = false;
+}
 
+void MultipleGoalsAtOnce::applyAvoidJointLimitsGoal(double weight) {
+	w_avoid_joint_limits_ = weight;
+	apply_avoid_joint_limits_goal_ = true;
+}
 
+void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight) {
+	w_minimum_displacement_ = weight;
+	apply_minimal_displacement_goal_ = true;
+}
 
+void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight) {
+	w_hard_limits_ = weight;
+	apply_hard_limits_goal_ = true;
+	lower_limit_ = lower_limit;
+	upper_limit_ = upper_limit;
+	joint_elbow_index_ = joint_elbow_index;
+}
+
+void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight) {
+	jacobian_ = jacobian;
+	w_manipulability_ = weight;
+	apply_manipulability_goal_ = true;
+}
+
+/**
+ * @brief Evaluate the cost of the goals and sum them up
+ * @param context - the goal context
+ * @return the cost of the goals
+ */
+double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
+	double sum = 0.0;
+
+	/*
+	// Position and orientation goal in separate cost function (not a secondary one)
+	tf2::Vector3 position(target_pose_.translation().x(), target_pose_.translation().y(), target_pose_.translation().z());
+	tf2::Vector3 context_position = context.getLinkFrame().getPosition();
+	//sum += context.getLinkFrame().getPosition().distance2(getPosition());
+	sum += context_position.distance2(position);
+
+	tf2::Quaternion orientation(target_pose_.rotation().x(), target_pose_.rotation().y(), target_pose_.rotation().z(), target_pose_.rotation().w());
+	tf2::Quaternion context_orientation = context.getLinkFrame().getOrientation();
+
+	double diff_norm1 = (orientation - context_orientation).length2();
+	double diff_norm2 = (orientation + context_orientation).length2();
+	double rotation_scale_ = 0.5;
+	//sum += fmin((getOrientation() - context.getLinkFrame().getOrientation()).length2(), (getOrientation() + context.getLinkFrame().getOrientation()).length2()) * (rotation_scale_ * rotation_scale_);
+	sum += fmin(diff_norm1, diff_norm2) * (rotation_scale_ * rotation_scale_);
+	*/
+
+	// minimal displacement goal
+	if (apply_minimal_displacement_goal_) {
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
+			d *= w_minimum_displacement_;
+			sum += d * d;
+		}
+	}
+
+	// avoid joint limits goal
+	if (apply_avoid_joint_limits_goal_) {
+		auto &info = context.getRobotInfo();
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+			size_t ivar = context.getProblemVariableIndex(i);
+			if (info.getClipMax(ivar) == DBL_MAX)
+				continue;
+			double d = context.getProblemVariablePosition(i) - (info.getMin(ivar) + info.getMax(ivar)) * 0.5;
+			d = fmax(0.0, fabs(d) * 2.0 - info.getSpan(ivar) * 0.5);
+			d *= w_avoid_joint_limits_;
+			sum += d * d;
+		}
+	}
+
+	// hard limits goal
+	if (apply_hard_limits_goal_) {
+		double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
+		d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
+		d *= w_hard_limits_;
+		sum += d * d;
+	}
+
+	if (apply_manipulability_goal_) {
+		Eigen::VectorXd singular_values;
+		double condition_number = 0.0;
+		// double sum = 0.0;
+		double min_sv = 0.0;
+		bool svd_ = true;
+
+		if (svd_) {
+			// compute the singular values of the Jacobian
+			Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_, Eigen::ComputeThinU | Eigen::ComputeThinV);
+			singular_values = svd.singularValues();
+
+			// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
+			if (singular_values.minCoeff() == 0) {
+				min_sv = 1e-6;
+			} else {
+				min_sv = singular_values.minCoeff();
+			}
+
+			condition_number = singular_values.maxCoeff() / min_sv;
+			condition_number *= w_manipulability_;
+			sum += condition_number * condition_number;
+
+		} else {
+			// Compute the manipulability
+			double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
+			if (manipulability == 0) {
+				manipulability = 1e-6;
+			}
+
+			sum += (w_manipulability_ * w_manipulability_) / manipulability;
+		}
+	}
+
+	return sum;
+}
