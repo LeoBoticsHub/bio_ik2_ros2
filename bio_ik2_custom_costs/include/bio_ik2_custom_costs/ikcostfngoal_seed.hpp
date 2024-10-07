@@ -108,6 +108,8 @@ private:
 	bool apply_hard_limits_goal_;
 	// cost to enable the manipulability goal
 	bool apply_manipulability_goal_;
+	// cost to minimize velocity of a joint 
+	bool apply_min_velocity_goal_;
 
 	// Jacobian matrix
 	Eigen::MatrixXd jacobian_;
@@ -117,11 +119,18 @@ private:
 	double w_minimum_displacement_;
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
+	double w_min_velocity_;
 
 	// hard limits goal parameters
+	// elbow
 	double lower_limit_;
 	double upper_limit_;
 	int joint_elbow_index_;
+
+	// minimal velocity joint goal parameters
+	double velocity_limit_;
+	double time_step_;	
+	int joint_index_;
 
 public:
 	/**
@@ -137,6 +146,8 @@ public:
 
 	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
 
+	void applyMinimalVelocityjointCost(double velocity_limit, double time_step, int joint_index, double weight = 1.0);
+
 	/**
 	 * @brief Evaluate the cost of the goals and sum them up
 	 * @param context - the goal context
@@ -144,5 +155,18 @@ public:
 	 */
 	double evaluate(const bio_ik::GoalContext &context) const override;
 };
+
+class MinimalVelocityjointGoal : public Goal
+{
+private:
+	double velocity_limit_;
+	double time_step_;
+	int joint_index_;
+
+public:
+ 	MinimalVelocityjointGoal(double velocity_limit, double time_step, int joint_index, double weight = 1.0);
+	double evaluate(const GoalContext &context) const;
+};
+
 
 } // namespace bio_ik

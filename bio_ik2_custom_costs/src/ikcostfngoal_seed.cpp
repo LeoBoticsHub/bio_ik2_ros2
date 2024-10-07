@@ -45,12 +45,14 @@ IKCostFnGoalSeed::IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 	  pose_(pose),
 	  function_(function),
 	  robot_model_(robot_model),
-	  seed_state_(seed_state) {
+	  seed_state_(seed_state)
+{
 	// set the weight of the goal
 	setWeight(weight);
 }
 
-double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
+double IKCostFnGoalSeed::evaluate(const GoalContext &context) const
+{
 
 	auto info = context.getRobotInfo();
 	moveit::core::RobotState robot_state(robot_model_);
@@ -58,7 +60,8 @@ double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
 
 	// copy the temporary solution to the position vector
 	std::vector<double> sol_positions(context.getProblemVariableCount());
-	for (size_t i = 0; i < context.getProblemVariableCount(); ++i) {
+	for (size_t i = 0; i < context.getProblemVariableCount(); ++i)
+	{
 		sol_positions[i] = context.getProblemVariablePosition(i);
 	}
 
@@ -69,14 +72,17 @@ double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
 
 MinimalDisplacementGoalSeed::MinimalDisplacementGoalSeed(const std::vector<double> &seed_state,
 														 double weight, bool secondary)
-	: seed_state_(seed_state) {
+	: seed_state_(seed_state)
+{
 	weight_ = weight;
 	secondary_ = secondary;
 }
 
-double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
+double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const
+{
 	double sum = 0.0;
-	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+	for (size_t i = 0; i < context.getProblemVariableCount(); i++)
+	{
 		double d = context.getProblemVariablePosition(i) - seed_state_[i];
 		sum += d * d;
 	}
@@ -87,12 +93,14 @@ ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower
 									   double upper_limit, double weight)
 	: lower_limit_(lower_limit),
 	  upper_limit_(upper_limit),
-	  joint_elbow_index_(joint_elbow_index) {
+	  joint_elbow_index_(joint_elbow_index)
+{
 	secondary_ = true;
 	weight_ = weight;
 }
 
-double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
+double ConfigureElbowGoal::evaluate(const GoalContext &context) const
+{
 	double sum = 0.0;
 
 	double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
@@ -105,26 +113,32 @@ double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 
 MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight)
 	: jacobian_(jacobian),
-	  svd_(svd) {
+	  svd_(svd)
+{
 	weight_ = weight;
 	secondary_ = true;
 }
 
-double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
+double MaxManipulabilityGoal::evaluate(const GoalContext &context) const
+{
 	Eigen::VectorXd singular_values;
 	double condition_number = 0;
 	double sum = 0.0;
 	double min_sv = 0.0;
 
-	if (svd_) {
+	if (svd_)
+	{
 		// compute the singular values of the Jacobian
 		Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		singular_values = svd.singularValues();
 
 		// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
-		if (singular_values.minCoeff() == 0) {
+		if (singular_values.minCoeff() == 0)
+		{
 			min_sv = 1e-6;
-		} else {
+		}
+		else
+		{
 			min_sv = singular_values.minCoeff();
 		}
 
@@ -133,10 +147,13 @@ double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 		sum += condition_number * condition_number;
 
 		return sum;
-	} else {
+	}
+	else
+	{
 		// Compute the manipulability
 		double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
-		if (manipulability == 0) {
+		if (manipulability == 0)
+		{
 			manipulability = 1e-6;
 		}
 
@@ -147,25 +164,30 @@ double MaxManipulabilityGoal::evaluate(const GoalContext &context) const {
 /**
  * @brief Constructor for the MultipleGoalsAtOnce class
  */
-MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
+MultipleGoalsAtOnce::MultipleGoalsAtOnce()
+{
 	secondary_ = true;
 	apply_avoid_joint_limits_goal_ = false;
 	apply_minimal_displacement_goal_ = false;
 	apply_hard_limits_goal_ = false;
 	apply_manipulability_goal_ = false;
+	apply_min_velocity_goal_ = false;
 }
 
-void MultipleGoalsAtOnce::applyAvoidJointLimitsGoal(double weight) {
+void MultipleGoalsAtOnce::applyAvoidJointLimitsGoal(double weight)
+{
 	w_avoid_joint_limits_ = weight;
 	apply_avoid_joint_limits_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight) {
+void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight)
+{
 	w_minimum_displacement_ = weight;
 	apply_minimal_displacement_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight) {
+void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight)
+{
 	w_hard_limits_ = weight;
 	apply_hard_limits_goal_ = true;
 	lower_limit_ = lower_limit;
@@ -173,10 +195,20 @@ void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_l
 	joint_elbow_index_ = joint_elbow_index;
 }
 
-void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight) {
+void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight)
+{
 	jacobian_ = jacobian;
 	w_manipulability_ = weight;
 	apply_manipulability_goal_ = true;
+}
+
+void MultipleGoalsAtOnce::applyMinimalVelocityjointCost(double velocity_limit, double time_step, int joint_index, double weight)
+{
+	velocity_limit_ = velocity_limit;
+	time_step_ = time_step;
+	joint_index_ = joint_index;
+	w_min_velocity_ = weight;
+	apply_min_velocity_goal_ = true;
 }
 
 /**
@@ -184,7 +216,8 @@ void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian
  * @param context - the goal context
  * @return the cost of the goals
  */
-double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
+double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const
+{
 	double sum = 0.0;
 
 	/*
@@ -205,8 +238,10 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	*/
 
 	// minimal displacement goal
-	if (apply_minimal_displacement_goal_) {
-		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+	if (apply_minimal_displacement_goal_)
+	{
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++)
+		{
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
 			d *= w_minimum_displacement_;
 			sum += d * d;
@@ -214,9 +249,11 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	}
 
 	// avoid joint limits goal
-	if (apply_avoid_joint_limits_goal_) {
+	if (apply_avoid_joint_limits_goal_)
+	{
 		auto &info = context.getRobotInfo();
-		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++)
+		{
 			size_t ivar = context.getProblemVariableIndex(i);
 			if (info.getClipMax(ivar) == DBL_MAX)
 				continue;
@@ -228,46 +265,84 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	}
 
 	// hard limits goal
-	if (apply_hard_limits_goal_) {
+	if (apply_hard_limits_goal_)
+	{
 		double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
 		d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
 		d *= w_hard_limits_;
 		sum += d * d;
 	}
 
-	if (apply_manipulability_goal_) {
+	if (apply_manipulability_goal_)
+	{
 		Eigen::VectorXd singular_values;
 		double condition_number = 0.0;
 		// double sum = 0.0;
 		double min_sv = 0.0;
 		bool svd_ = true;
 
-		if (svd_) {
+		if (svd_)
+		{
 			// compute the singular values of the Jacobian
 			Eigen::JacobiSVD<Eigen::MatrixXd> svd(jacobian_, Eigen::ComputeThinU | Eigen::ComputeThinV);
 			singular_values = svd.singularValues();
 
 			// Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
-			if (singular_values.minCoeff() == 0) {
+			if (singular_values.minCoeff() == 0)
+			{
 				min_sv = 1e-6;
-			} else {
+			}
+			else
+			{
 				min_sv = singular_values.minCoeff();
 			}
 
 			condition_number = singular_values.maxCoeff() / min_sv;
 			condition_number *= w_manipulability_;
 			sum += condition_number * condition_number;
-
-		} else {
+		}
+		else
+		{
 			// Compute the manipulability
 			double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
-			if (manipulability == 0) {
+			if (manipulability == 0)
+			{
 				manipulability = 1e-6;
 			}
 
 			sum += (w_manipulability_ * w_manipulability_) / manipulability;
 		}
 	}
+
+	// minimal velocity joint goal
+	if (apply_min_velocity_goal_)
+	{
+		double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
+		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+		vel_d *= w_min_velocity_;
+		sum += vel_d * vel_d;
+	}
+
+	return sum;
+}
+
+MinimalVelocityjointGoal::MinimalVelocityjointGoal(double velocity_limit, double time_step, int joint_index, double weight)
+	: velocity_limit_(velocity_limit),
+	  time_step_(time_step),
+	  joint_index_(joint_index)
+{
+	weight_ = weight;
+	secondary_ = true;
+}
+
+double MinimalVelocityjointGoal::evaluate(const GoalContext &context) const
+{
+	double sum = 0.0;
+
+	double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
+	double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+	vel_d *= weight_;
+	sum += vel_d * vel_d;
 
 	return sum;
 }
