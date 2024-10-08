@@ -84,9 +84,10 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const
 	for (size_t i = 0; i < context.getProblemVariableCount(); i++)
 	{
 		double d = context.getProblemVariablePosition(i) - seed_state_[i];
+		d *= weight_;
 		sum += d * d;
 	}
-	return sum * weight_;
+	return sum;
 }
 
 ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit,
@@ -161,6 +162,49 @@ double MaxManipulabilityGoal::evaluate(const GoalContext &context) const
 	}
 }
 
+MinimalVelocityjointGoal::MinimalVelocityjointGoal(double time_step, int joint_index, double weight)
+    : time_step_(time_step),
+	  joint_index_(joint_index)
+{
+	weight_ = weight;
+	secondary_ = true;
+}
+
+double MinimalVelocityjointGoal::evaluate(const GoalContext &context) const
+{
+	double sum = 0.0;
+	auto &info = context.getRobotInfo();
+	double velocity_limit_ = info.getMaxVelocity(joint_index_);
+	double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
+	double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+	vel_d *= weight_;
+	sum += vel_d * vel_d;
+
+	return sum;
+}
+
+MinimalAccelerationGoal::MinimalAccelerationGoal(const std::vector<double> acceleration_limits, double time_step, double weight)
+	: acceleration_limits_(acceleration_limits),
+	  time_step_(time_step)
+{
+	weight_ = weight;
+	secondary_ = true;
+}
+
+double MinimalAccelerationGoal::evaluate(const GoalContext &context) const
+{
+	double sum = 0.0;
+	for (size_t i = 0; i < context.getProblemVariableCount(); i++)
+	{
+		double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
+		double acc_d = fmax(0.0, fabs(d) / pow(time_step_,2) - acceleration_limits_[i]);
+		acc_d *= weight_;
+		sum += acc_d * acc_d;
+	}
+
+	return sum;
+}
+
 /**
  * @brief Constructor for the MultipleGoalsAtOnce class
  */
@@ -172,6 +216,7 @@ MultipleGoalsAtOnce::MultipleGoalsAtOnce()
 	apply_hard_limits_goal_ = false;
 	apply_manipulability_goal_ = false;
 	apply_min_velocity_goal_ = false;
+	apply_min_acceleration_goal_ = false;
 }
 
 void MultipleGoalsAtOnce::applyAvoidJointLimitsGoal(double weight)
@@ -202,13 +247,20 @@ void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian
 	apply_manipulability_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyMinimalVelocityjointCost(double velocity_limit, double time_step, int joint_index, double weight)
+void MultipleGoalsAtOnce::applyMinimalVelocityjointCost(double time_step, int joint_index, double weight)
 {
-	velocity_limit_ = velocity_limit;
 	time_step_ = time_step;
 	joint_index_ = joint_index;
 	w_min_velocity_ = weight;
 	apply_min_velocity_goal_ = true;
+}
+
+void MultipleGoalsAtOnce::applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight)
+{
+	acceleration_limits_ = acceleration_limits;
+	time_step_ = time_step;
+	w_min_acceleration_ = weight;
+	apply_min_acceleration_goal_ = true;
 }
 
 /**
@@ -316,33 +368,29 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const
 
 	// minimal velocity joint goal
 	if (apply_min_velocity_goal_)
-	{
+	{	
+		auto &info = context.getRobotInfo();
+		double velocity_limit_ = info.getMaxVelocity(joint_index_);
 		double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
 		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
 		vel_d *= w_min_velocity_;
 		sum += vel_d * vel_d;
 	}
 
-	return sum;
-}
+	// minimal acceleration joints goal
+	if (apply_min_acceleration_goal_)
+	{
+		
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++)
+		{
+			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
+			double acc_d = fmax(0.0, fabs(d) / pow(time_step_,2) - acceleration_limits_[i]);
+			acc_d *= w_min_acceleration_;
+			sum += acc_d * acc_d;
+		}
 
-MinimalVelocityjointGoal::MinimalVelocityjointGoal(double velocity_limit, double time_step, int joint_index, double weight)
-	: velocity_limit_(velocity_limit),
-	  time_step_(time_step),
-	  joint_index_(joint_index)
-{
-	weight_ = weight;
-	secondary_ = true;
-}
-
-double MinimalVelocityjointGoal::evaluate(const GoalContext &context) const
-{
-	double sum = 0.0;
-
-	double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
-	double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
-	vel_d *= weight_;
-	sum += vel_d * vel_d;
+	}
 
 	return sum;
 }
+

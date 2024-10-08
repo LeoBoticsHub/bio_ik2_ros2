@@ -95,6 +95,31 @@ public:
 	double evaluate(const GoalContext &context) const;
 };
 
+
+// MinimalVelocityjointGoal tries to keep the velocity of a joint under its joint velocity limit
+class MinimalVelocityjointGoal : public Goal
+{
+private:
+	double time_step_;
+	int joint_index_;
+
+public:
+ 	MinimalVelocityjointGoal(double time_step, int joint_index, double weight = 1.0);
+	double evaluate(const GoalContext &context) const;
+};
+
+// MinimalAccelerationGoal tries to keep the acceleration of all joint under the joint acceleration limits
+class MinimalAccelerationGoal : public Goal
+{
+private:
+	const std::vector<double> acceleration_limits_;
+	double time_step_;
+
+public:
+ 	MinimalAccelerationGoal(const std::vector<double> acceleration_limits, double time_step, double weight = 1.0);
+	double evaluate(const GoalContext &context) const;
+};
+
 /**
  * @brief This goal combines multiple goals at once
  */
@@ -108,8 +133,11 @@ private:
 	bool apply_hard_limits_goal_;
 	// cost to enable the manipulability goal
 	bool apply_manipulability_goal_;
-	// cost to minimize velocity of a joint 
+	// cost to keep velocity of a joint under maximum value
 	bool apply_min_velocity_goal_;
+	// cost to keep joints acceleration under maximum value
+	bool apply_min_acceleration_goal_;
+
 
 	// Jacobian matrix
 	Eigen::MatrixXd jacobian_;
@@ -120,6 +148,7 @@ private:
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
 	double w_min_velocity_;
+	double w_min_acceleration_;
 
 	// hard limits goal parameters
 	// elbow
@@ -128,9 +157,12 @@ private:
 	int joint_elbow_index_;
 
 	// minimal velocity joint goal parameters
-	double velocity_limit_;
 	double time_step_;	
 	int joint_index_;
+
+	// minimal acceleration goal parameters
+	std::vector<double> acceleration_limits_;
+
 
 public:
 	/**
@@ -146,7 +178,9 @@ public:
 
 	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
 
-	void applyMinimalVelocityjointCost(double velocity_limit, double time_step, int joint_index, double weight = 1.0);
+	void applyMinimalVelocityjointCost(double time_step, int joint_index, double weight = 1.0);
+
+	void applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight = 1.0);
 
 	/**
 	 * @brief Evaluate the cost of the goals and sum them up
@@ -156,17 +190,7 @@ public:
 	double evaluate(const bio_ik::GoalContext &context) const override;
 };
 
-class MinimalVelocityjointGoal : public Goal
-{
-private:
-	double velocity_limit_;
-	double time_step_;
-	int joint_index_;
 
-public:
- 	MinimalVelocityjointGoal(double velocity_limit, double time_step, int joint_index, double weight = 1.0);
-	double evaluate(const GoalContext &context) const;
-};
 
 
 } // namespace bio_ik
