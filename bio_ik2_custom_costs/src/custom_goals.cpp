@@ -206,6 +206,12 @@ void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight) {
 	apply_minimal_displacement_goal_ = true;
 }
 
+void MultipleGoalsAtOnce::applyMinimalDisplacementSeedGoal(std::vector<double> seed, double weight) {
+	w_minimum_displacement_seed_ = weight;
+	apply_minimal_displacement_seed_goal_ = true;
+	seed_ = seed;
+}
+
 void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight) {
 	w_hard_limits_ = weight;
 	apply_hard_limits_goal_ = true;
@@ -247,6 +253,14 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
 			d *= w_minimum_displacement_;
+			sum += d * d;
+		}
+	}
+
+	if (apply_minimal_displacement_seed_goal_) {
+		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
+			double d = context.getProblemVariablePosition(i) - seed_[i];
+			d *= w_minimum_displacement_seed_;
 			sum += d * d;
 		}
 	}

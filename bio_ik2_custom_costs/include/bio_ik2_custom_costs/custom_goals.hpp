@@ -156,8 +156,10 @@ public:
  */
 class MultipleGoalsAtOnce : public Goal {
 private:
-	// minimal displacement goal with respect to the given seed (current robot state)
+	// minimal displacement goal with respect to the given seed (= current robot state)
 	bool apply_minimal_displacement_goal_;
+	// minimal displacement goal with respect to the a user defined seed 
+	bool apply_minimal_displacement_seed_goal_;
 	// linear cost to prefer solutions in the joints center and avoid joint limits
 	bool apply_avoid_joint_limits_goal_;
 	// cost to enforce virtual hard limits on one joint, to prevent strange solutions
@@ -175,6 +177,7 @@ private:
 	// weights for the goals
 	double w_manipulability_;
 	double w_minimum_displacement_;
+	double w_minimum_displacement_seed_;
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
 	double w_min_velocity_;
@@ -193,6 +196,9 @@ private:
 	// minimal acceleration goal parameters
 	std::vector<double> acceleration_limits_;
 
+	// minimal displacement seed 
+	std::vector<double> seed_;
+
 public:
 	/**
 	 * @brief Constructor for the MultipleGoalsAtOnce class
@@ -200,6 +206,8 @@ public:
 	MultipleGoalsAtOnce();
 
 	void applyMinimalDisplacementGoal(double weight = 1.0);
+
+	void applyMinimalDisplacementSeedGoal(std::vector<double> seed, double weight = 1.0);
 
 	void applyAvoidJointLimitsGoal(double weight = 1.0);
 
