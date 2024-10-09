@@ -35,7 +35,7 @@ include_directories(
 # Add libraries
 add_library(custom_goals 
     src/custom_goals.cpp include/${PROJECT_NAME}/custom_goals.hpp
-    src/ikcostfngoal_seed.cpp include/${PROJECT_NAME}/ikcostfngoal_seed.hpp)
+)
 
 # Link libraries
 ament_target_dependencies(
