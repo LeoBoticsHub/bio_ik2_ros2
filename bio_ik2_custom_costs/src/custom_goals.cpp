@@ -111,7 +111,7 @@ MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, boo
 	secondary_ = true;
 }
 
-double MaxManipulabilityGoal::evaluate(const GoalContext &/*context*/) const {
+double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 	Eigen::VectorXd singular_values;
 	double condition_number = 0;
 	double sum = 0.0;
@@ -206,12 +206,6 @@ void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight) {
 	apply_minimal_displacement_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyMinimalDisplacementSeedGoal(std::vector<double> seed, double weight) {
-	w_minimum_displacement_seed_ = weight;
-	apply_minimal_displacement_seed_goal_ = true;
-	seed_ = seed;
-}
-
 void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight) {
 	w_hard_limits_ = weight;
 	apply_hard_limits_goal_ = true;
@@ -226,10 +220,11 @@ void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian
 	apply_manipulability_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyMinimalVelocityjointCost(double time_step, int joint_index, double weight) {
+void MultipleGoalsAtOnce::applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces,
+													 std::vector<double> weights) {
 	time_step_ = time_step;
-	joint_index_ = joint_index;
-	w_min_velocity_ = weight;
+	joint_indeces_ = joint_indeces;
+	w_min_velocities_ = weights;
 	apply_min_velocity_goal_ = true;
 }
 
@@ -253,14 +248,6 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
 			d *= w_minimum_displacement_;
-			sum += d * d;
-		}
-	}
-
-	if (apply_minimal_displacement_seed_goal_) {
-		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
-			double d = context.getProblemVariablePosition(i) - seed_[i];
-			d *= w_minimum_displacement_seed_;
 			sum += d * d;
 		}
 	}
@@ -323,11 +310,13 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	// minimal velocity joint goal
 	if (apply_min_velocity_goal_) {
 		auto &info = context.getRobotInfo();
-		double velocity_limit_ = info.getMaxVelocity(joint_index_);
-		double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
-		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
-		vel_d *= w_min_velocity_;
-		sum += vel_d * vel_d;
+		for (int i = 0; i < joint_indeces_.size(); i++) {
+			double velocity_limit_ = info.getMaxVelocity(i);
+			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
+			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+			vel_d *= w_min_velocities_[i];
+			sum += vel_d * vel_d;
+		}
 	}
 
 	// minimal acceleration joints goal

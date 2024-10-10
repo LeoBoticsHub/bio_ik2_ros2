@@ -158,8 +158,6 @@ class MultipleGoalsAtOnce : public Goal {
 private:
 	// minimal displacement goal with respect to the given seed (= current robot state)
 	bool apply_minimal_displacement_goal_;
-	// minimal displacement goal with respect to the a user defined seed 
-	bool apply_minimal_displacement_seed_goal_;
 	// linear cost to prefer solutions in the joints center and avoid joint limits
 	bool apply_avoid_joint_limits_goal_;
 	// cost to enforce virtual hard limits on one joint, to prevent strange solutions
@@ -177,10 +175,9 @@ private:
 	// weights for the goals
 	double w_manipulability_;
 	double w_minimum_displacement_;
-	double w_minimum_displacement_seed_;
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
-	double w_min_velocity_;
+	std::vector<double> w_min_velocities_;
 	double w_min_acceleration_;
 
 	// hard limits goal parameters
@@ -191,13 +188,10 @@ private:
 
 	// minimal velocity joint goal parameters
 	double time_step_;
-	int joint_index_;
+	std::vector<int> joint_indeces_;
 
 	// minimal acceleration goal parameters
 	std::vector<double> acceleration_limits_;
-
-	// minimal displacement seed 
-	std::vector<double> seed_;
 
 public:
 	/**
@@ -207,15 +201,13 @@ public:
 
 	void applyMinimalDisplacementGoal(double weight = 1.0);
 
-	void applyMinimalDisplacementSeedGoal(std::vector<double> seed, double weight = 1.0);
-
 	void applyAvoidJointLimitsGoal(double weight = 1.0);
 
 	void applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight = 1.0);
 
 	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
 
-	void applyMinimalVelocityjointCost(double time_step, int joint_index, double weight = 1.0);
+	void applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces, std::vector<double> weights);
 
 	void applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight = 1.0);
 
