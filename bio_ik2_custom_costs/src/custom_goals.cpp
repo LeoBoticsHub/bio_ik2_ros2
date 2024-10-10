@@ -310,9 +310,10 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	// minimal velocity joint goal
 	if (apply_min_velocity_goal_) {
 		auto &info = context.getRobotInfo();
-		for (int i = 0; i < joint_indeces_.size(); i++) {
-			double velocity_limit_ = info.getMaxVelocity(i);
-			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
+		for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
+			double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
+			double d = context.getProblemVariablePosition(
+				joint_indeces_[i]) - context.getProblemVariableInitialGuess(joint_indeces_[i]);
 			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
 			vel_d *= w_min_velocities_[i];
 			sum += vel_d * vel_d;
