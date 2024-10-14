@@ -36,6 +36,14 @@
 
 using namespace bio_ik;
 
+/**
+ * @brief constructor for the IKCostFnGoalSeed class
+ * @param pose - the target pose
+ * @param function - the cost function to be evaluated for a candidate IK solution
+ * @param robot_model - the robot model
+ * @param seed_state - a given seed state to evaluate the cost function with
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 IKCostFnGoalSeed::IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 								   const kinematics::KinematicsBase::IKCostFn &function,
 								   const moveit::core::RobotModelConstPtr &robot_model,
@@ -50,6 +58,11 @@ IKCostFnGoalSeed::IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 	setWeight(weight);
 }
 
+/**
+ * @brief function to evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
 double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
 
 	auto info = context.getRobotInfo();
@@ -67,6 +80,13 @@ double IKCostFnGoalSeed::evaluate(const GoalContext &context) const {
 	return function_(pose_, robot_state, &jmg, seed_state_);
 }
 
+/**
+ * @brief constructor for the MinimalDisplacementGoalSeed class
+ * 		gives high cost to solutions that are far from the seed state
+ * @param seed_state - the seed state to minimize the displacement from
+ * @param weight - the weight of the goal (default = 1.0)
+ * @param secondary - the secondary goal flag (default = true)
+ */
 MinimalDisplacementGoalSeed::MinimalDisplacementGoalSeed(const std::vector<double> &seed_state,
 														 double weight, bool secondary)
 	: seed_state_(seed_state) {
@@ -74,6 +94,11 @@ MinimalDisplacementGoalSeed::MinimalDisplacementGoalSeed(const std::vector<doubl
 	secondary_ = secondary;
 }
 
+/**
+ * @brief function to evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
 double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
@@ -84,6 +109,13 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 	return sum;
 }
 
+/**
+ * @brief Constructor for the ConfigureElbowGoal class
+ * @param joint_elbow_index - the index of the elbow joint
+ * @param lower_limit - the lower limit of the elbow joint
+ * @param upper_limit - the upper limit of the elbow joint
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit,
 									   double upper_limit, double weight)
 	: lower_limit_(lower_limit),
@@ -93,6 +125,11 @@ ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower
 	weight_ = weight;
 }
 
+/**
+ * @brief Evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
 double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 
@@ -104,6 +141,12 @@ double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 	return sum;
 }
 
+/**
+ * @brief Constructor for the MaxManipulabilityGoal class
+ * @param jacobian - the Jacobian matrix obtained from the robot state
+ * @param svd - flag to use the singular value decomposition to compute the manipulability
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight)
 	: jacobian_(jacobian),
 	  svd_(svd) {
@@ -111,6 +154,11 @@ MaxManipulabilityGoal::MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, boo
 	secondary_ = true;
 }
 
+/**
+ * @brief Evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
 double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 	Eigen::VectorXd singular_values;
 	double condition_number = 0;
@@ -145,14 +193,25 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 	}
 }
 
-MinimalVelocityjointGoal::MinimalVelocityjointGoal(double time_step, int joint_index, double weight)
+/**
+ * @brief Constructor for the MinimalVelocityJointGoal class
+ * @param time_step - the time step to compute the velocity
+ * @param joint_index - the index of the joint to keep the velocity under the maximum value
+ * @param weight - the weight of the goal (default = 1.0)
+ */
+MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, int joint_index, double weight)
 	: time_step_(time_step),
 	  joint_index_(joint_index) {
 	weight_ = weight;
 	secondary_ = true;
 }
 
-double MinimalVelocityjointGoal::evaluate(const GoalContext &context) const {
+/**
+ * @brief Evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
+double MinimalVelocityJointGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	auto &info = context.getRobotInfo();
 	double velocity_limit_ = info.getMaxVelocity(joint_index_);
@@ -164,6 +223,12 @@ double MinimalVelocityjointGoal::evaluate(const GoalContext &context) const {
 	return sum;
 }
 
+/**
+ * @brief Constructor for the MinimalAccelerationGoal class
+ * @param acceleration_limits - the acceleration limits for all joints
+ * @param time_step - the time step to compute the acceleration
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 MinimalAccelerationGoal::MinimalAccelerationGoal(const std::vector<double> acceleration_limits, double time_step, double weight)
 	: acceleration_limits_(acceleration_limits),
 	  time_step_(time_step) {
@@ -171,6 +236,11 @@ MinimalAccelerationGoal::MinimalAccelerationGoal(const std::vector<double> accel
 	secondary_ = true;
 }
 
+/**
+ * @brief Evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
+ */
 double MinimalAccelerationGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
@@ -196,30 +266,56 @@ MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
 	apply_min_acceleration_goal_ = false;
 }
 
+/**
+ * @brief Apply the minimal displacement goal, and sets the relative flag to true
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 void MultipleGoalsAtOnce::applyAvoidJointLimitsGoal(double weight) {
 	w_avoid_joint_limits_ = weight;
 	apply_avoid_joint_limits_goal_ = true;
 }
 
+/**
+ * @brief Apply the avoid joint limits goal, and sets the relative flag to true
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 void MultipleGoalsAtOnce::applyMinimalDisplacementGoal(double weight) {
 	w_minimum_displacement_ = weight;
 	apply_minimal_displacement_goal_ = true;
 }
 
-void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_elbow_index, double weight) {
+/**
+ * @brief Apply the hard limits goal, and sets the relative flag to true
+ * @param lower_limit - the lower limit of the joint
+ * @param upper_limit - the upper limit of the joint
+ * @param joint_index - the index of the joint
+ * @param weight - the weight of the goal (default = 1.0)
+ */
+void MultipleGoalsAtOnce::applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_index, double weight) {
 	w_hard_limits_ = weight;
 	apply_hard_limits_goal_ = true;
 	lower_limit_ = lower_limit;
 	upper_limit_ = upper_limit;
-	joint_elbow_index_ = joint_elbow_index;
+	limited_joint_index_ = joint_index;
 }
 
+/**
+ * @brief Apply the manipulability goal, and sets the relative flag to true
+ * @param jacobian - the Jacobian matrix obtained from the robot state
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight) {
 	jacobian_ = jacobian;
 	w_manipulability_ = weight;
 	apply_manipulability_goal_ = true;
 }
 
+/**
+ * @brief Apply the minimal velocity joint goal, and sets the relative flag to true
+ * @param time_step - the time step to compute the velocity
+ * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
+ * @param weights - the weights of the goal
+ */
 void MultipleGoalsAtOnce::applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces,
 													 std::vector<double> weights) {
 	time_step_ = time_step;
@@ -228,6 +324,12 @@ void MultipleGoalsAtOnce::applyMinimalVelocitiesGoal(double time_step, std::vect
 	apply_min_velocity_goal_ = true;
 }
 
+/**
+ * @brief Apply the minimal acceleration goal, and sets the relative flag to true
+ * @param acceleration_limits - the acceleration limits for all joints
+ * @param time_step - the time step to compute the acceleration
+ * @param weight - the weight of the goal (default = 1.0)
+ */
 void MultipleGoalsAtOnce::applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight) {
 	acceleration_limits_ = acceleration_limits;
 	time_step_ = time_step;
@@ -236,9 +338,9 @@ void MultipleGoalsAtOnce::applyMinimalAccelerationCost(const std::vector<double>
 }
 
 /**
- * @brief Evaluate the cost of the goals and sum them up
- * @param context - the goal context
- * @return the cost of the goals
+ * @brief Evaluate the cost of the goal
+ * @param context - the goal context: extract information about robot state, joint model group, and robot model
+ * @return the cost of the goal
  */
 double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	double sum = 0.0;
@@ -268,12 +370,13 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 
 	// hard limits goal
 	if (apply_hard_limits_goal_) {
-		double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
+		double d = context.getProblemVariablePosition(limited_joint_index_) - (upper_limit_ + lower_limit_) * 0.5;
 		d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
 		d *= w_hard_limits_;
 		sum += d * d;
 	}
 
+	// manipulability goal
 	if (apply_manipulability_goal_) {
 		Eigen::VectorXd singular_values;
 		double condition_number = 0.0;
@@ -313,7 +416,8 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 			double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 			double d = context.getProblemVariablePosition(
-				joint_indeces_[i]) - context.getProblemVariableInitialGuess(joint_indeces_[i]);
+						   joint_indeces_[i]) -
+					   context.getProblemVariableInitialGuess(joint_indeces_[i]);
 			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
 			vel_d *= w_min_velocities_[i];
 			sum += vel_d * vel_d;
