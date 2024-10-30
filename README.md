@@ -6,7 +6,7 @@ It contains also definitions of more custom goals (cost functions) for Bio IK2.
 ## Contents
 
 - [bio_ik2](bio_ik/README.md) - The core library for Bio IK2.
-- [bio_ik2_custom_costs](bio_ik_custom_costs/README.md) - Custom goals (cost functions) for Bio IK2.
+- [bio_ik2_custom_costs](bio_ik2_custom_costs/README.md) - Custom goals (cost functions) for Bio IK2.
 
 ## Installation
 
