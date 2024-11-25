@@ -46,17 +46,22 @@
 #include <immintrin.h>
 #include <x86intrin.h>
 
-#if(__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 9))
+#endif
+
+// #if(__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 9))
+// #define FUNCTION_MULTIVERSIONING 1
+// #else
+// #define FUNCTION_MULTIVERSIONING 0
+// #endif
+
+// make sure the code is compiled with the accelerations
 #define FUNCTION_MULTIVERSIONING 1
-#else
-#define FUNCTION_MULTIVERSIONING 0
-#endif
 
-#else
+// #else
 
-#define FUNCTION_MULTIVERSIONING 0
+// #define FUNCTION_MULTIVERSIONING 0
 
-#endif
+// #endif
 
 namespace bio_ik
 {

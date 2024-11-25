@@ -32,13 +32,12 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <bio_ik/goal.h>
-
-#include "forward_kinematics.h"
-#include "ik_base.h"
-#include "ik_parallel.h"
-#include "problem.h"
-#include "utils.h"
+#include "bio_ik/goal.h"
+#include "bio_ik/forward_kinematics.h"
+#include "bio_ik/ik_base.h"
+#include "bio_ik/ik_parallel.h"
+#include "bio_ik/problem.h"
+#include "bio_ik/utils.h"
 
 #include <Eigen/Core>
 #include <Eigen/Dense>

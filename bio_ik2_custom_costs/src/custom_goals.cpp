@@ -103,10 +103,9 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 		double d = context.getProblemVariablePosition(i) - seed_state_[i];
-		d *= weight_;
 		sum += d * d;
 	}
-	return sum;
+	return sum * weight_;
 }
 
 /**
@@ -135,10 +134,9 @@ double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
 
 	double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
 	d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
-	d *= weight_;
 	sum += d * d;
 
-	return sum;
+	return sum * weight_;
 }
 
 /**
@@ -178,10 +176,9 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 		}
 
 		condition_number = singular_values.maxCoeff() / min_sv;
-		condition_number *= weight_;
 		sum += condition_number * condition_number;
 
-		return sum;
+		return sum * weight_;
 	} else {
 		// Compute the manipulability
 		double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
@@ -189,7 +186,7 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 			manipulability = 1e-6;
 		}
 
-		return (weight_ * weight_) / manipulability;
+		return weight_ / manipulability;
 	}
 }
 
@@ -217,10 +214,9 @@ double MinimalVelocityJointGoal::evaluate(const GoalContext &context) const {
 	double velocity_limit_ = info.getMaxVelocity(joint_index_);
 	double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
 	double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
-	vel_d *= weight_;
 	sum += vel_d * vel_d;
 
-	return sum;
+	return sum * weight_;
 }
 
 /**
@@ -246,11 +242,10 @@ double MinimalAccelerationGoal::evaluate(const GoalContext &context) const {
 	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 		double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
 		double acc_d = fmax(0.0, fabs(d) / pow(time_step_, 2) - acceleration_limits_[i]);
-		acc_d *= weight_;
 		sum += acc_d * acc_d;
 	}
 
-	return sum;
+	return sum * weight_;
 }
 
 /**
@@ -258,6 +253,7 @@ double MinimalAccelerationGoal::evaluate(const GoalContext &context) const {
  */
 MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
 	secondary_ = true;
+	weight_ = 1.0;
 	apply_avoid_joint_limits_goal_ = false;
 	apply_minimal_displacement_goal_ = false;
 	apply_hard_limits_goal_ = false;
@@ -349,8 +345,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	if (apply_minimal_displacement_goal_) {
 		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
-			d *= w_minimum_displacement_;
-			sum += d * d;
+			sum += d * d * w_minimum_displacement_;
 		}
 	}
 
@@ -363,8 +358,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 				continue;
 			double d = context.getProblemVariablePosition(i) - (info.getMin(ivar) + info.getMax(ivar)) * 0.5;
 			d = fmax(0.0, fabs(d) * 2.0 - info.getSpan(ivar) * 0.5);
-			d *= w_avoid_joint_limits_;
-			sum += d * d;
+			sum += d * d * w_avoid_joint_limits_;
 		}
 	}
 
@@ -372,8 +366,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 	if (apply_hard_limits_goal_) {
 		double d = context.getProblemVariablePosition(limited_joint_index_) - (upper_limit_ + lower_limit_) * 0.5;
 		d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
-		d *= w_hard_limits_;
-		sum += d * d;
+		sum += d * d * w_hard_limits_;
 	}
 
 	// manipulability goal
@@ -397,8 +390,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 			}
 
 			condition_number = singular_values.maxCoeff() / min_sv;
-			condition_number *= w_manipulability_;
-			sum += condition_number * condition_number;
+			sum += condition_number * condition_number * w_manipulability_;
 		} else {
 			// Compute the manipulability with the alternative method
 			double manipulability = sqrt((jacobian_ * jacobian_.transpose()).determinant());
@@ -406,7 +398,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 				manipulability = 1e-6;
 			}
 
-			sum += (w_manipulability_ * w_manipulability_) / manipulability;
+			sum += w_manipulability_ / manipulability;
 		}
 	}
 
@@ -419,8 +411,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 						   joint_indeces_[i]) -
 					   context.getProblemVariableInitialGuess(joint_indeces_[i]);
 			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
-			vel_d *= w_min_velocities_[i];
-			sum += vel_d * vel_d;
+			sum += vel_d * vel_d * w_min_velocities_[i];
 		}
 	}
 
@@ -430,8 +421,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
 			double acc_d = fmax(0.0, fabs(d) / pow(time_step_, 2) - acceleration_limits_[i]);
-			acc_d *= w_min_acceleration_;
-			sum += acc_d * acc_d;
+			sum += acc_d * acc_d * w_min_acceleration_;
 		}
 	}
 

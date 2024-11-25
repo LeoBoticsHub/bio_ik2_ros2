@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include "ik_base.h"
+#include "bio_ik/ik_base.h"
 
 #include <geometric_shapes/bodies.h>
 #include <geometric_shapes/shapes.h>
@@ -245,7 +245,8 @@ double Problem::computeGoalFitness(GoalInfo& goal_info, const Frame* tip_frames,
 {
     goal_info.goal_context.tip_link_frames_ = tip_frames;
     goal_info.goal_context.active_variable_positions_ = active_variable_positions;
-    return goal_info.goal->evaluate(goal_info.goal_context) * goal_info.weight_sq;
+    //NOTE: removed multiplication by goal weight squared here. Weighting must happen inside evaluate method
+    return goal_info.goal->evaluate(goal_info.goal_context) ; // * goal_info.weight_sq;
 }
 
 double Problem::computeGoalFitness(std::vector<GoalInfo>& goals, const Frame* tip_frames, const double* active_variable_positions)
