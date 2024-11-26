@@ -303,8 +303,8 @@ public:
 				continue;
 			double d = context.getProblemVariablePosition(i) - (info.getMin(ivar) + info.getMax(ivar)) * 0.5;
 			d = fmax(0.0, fabs(d) * 2.0 - info.getSpan(ivar) * 0.5);
-			//NOTE: removed squaring the weight
-			//d *= context.getProblemVariableWeight(i);
+			// NOTE: removed squaring the weight
+			// d *= context.getProblemVariableWeight(i);
 			sum += d * d * context.getProblemVariableWeight(i);
 		}
 		return sum;
@@ -325,8 +325,8 @@ public:
 			if (info.getClipMax(ivar) == DBL_MAX)
 				continue;
 			double d = context.getProblemVariablePosition(i) - (info.getMin(ivar) + info.getMax(ivar)) * 0.5;
-			//NOTE: removed squaring the weight
-			//d *= context.getProblemVariableWeight(i);
+			// NOTE: removed squaring the weight
+			// d *= context.getProblemVariableWeight(i);
 			sum += d * d * context.getProblemVariableWeight(i);
 		}
 		return sum;
@@ -358,8 +358,8 @@ public:
 		double sum = 0.0;
 		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
 			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
-			//NOTE: removed squaring the weight
-			//d *= context.getProblemVariableWeight(i);
+			// NOTE: removed squaring the weight
+			// d *= context.getProblemVariableWeight(i);
 			sum += d * d * context.getProblemVariableWeight(i);
 		}
 		return sum;
@@ -547,7 +547,7 @@ public:
 		double d = fmax(0.0, v.angle(direction) - angle);
 		sum += d * d;
 		double w = position_weight;
-		//NOTE: removed squaring the weight
+		// NOTE: removed squaring the weight
 		sum += w * (position - fb.getPosition()).length2();
 		return sum;
 	}

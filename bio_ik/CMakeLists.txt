@@ -87,7 +87,7 @@ include_directories(
 set(SOURCES
     src/goal_types.cpp
     src/problem.cpp
-    src/ik_test.cpp
+    #src/ik_test.cpp
     src/ik_gradient.cpp
     src/ik_evolution_1.cpp
     src/ik_evolution_2.cpp
