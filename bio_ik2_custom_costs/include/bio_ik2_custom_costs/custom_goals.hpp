@@ -172,43 +172,21 @@ public:
  */
 class MinimalVelocityJointGoal : public Goal {
 private:
-	double time_step_;
-	int joint_index_;
+	const double time_step_;
+	const std::vector<int> joint_indeces_;
+	const std::vector<double> previous_joint_positions_;
+	const std::vector<double> weights_;
 
 public:
 	/**
 	 * @brief Constructor for the MinimalVelocityJointGoal class
 	 * @param time_step - the time step to compute the velocity
-	 * @param joint_index - the index of the joint to keep the velocity under the maximum value
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @param joint_indeces - the indeces of the joint to keep the velocity under the maximum value
+	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
+	 * @param weights - the weights for the cost for each joint index
 	 */
-	MinimalVelocityJointGoal(double time_step, int joint_index, double weight = 1.0);
-
-	/**
-	 * @brief Evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
-	double evaluate(const GoalContext &context) const;
-};
-
-/**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * MinimalAccelerationGoal tries to keep the acceleration of all joint under the joint acceleration limits
- */
-class MinimalAccelerationGoal : public Goal {
-private:
-	const std::vector<double> acceleration_limits_;
-	double time_step_;
-
-public:
-	/**
-	 * @brief Constructor for the MinimalAccelerationGoal class
-	 * @param acceleration_limits - the acceleration limits for all joints
-	 * @param time_step - the time step to compute the acceleration
-	 * @param weight - the weight of the goal (default = 1.0)
-	 */
-	MinimalAccelerationGoal(const std::vector<double> acceleration_limits, double time_step, double weight = 1.0);
+	MinimalVelocityJointGoal(double time_step, std::vector<int> joint_indeces,
+							 std::vector<double> previous_joint_positions, std::vector<double> weights);
 
 	/**
 	 * @brief Evaluate the cost of the goal
@@ -242,11 +220,10 @@ private:
 	bool apply_manipulability_goal_;
 	// cost to keep velocity of a joint under maximum value
 	bool apply_min_velocity_goal_;
-	// cost to keep joints acceleration under maximum value
-	bool apply_min_acceleration_goal_;
 
-	// Jacobian matrix
+	// Jacobian matrix for the manipulability goal
 	Eigen::MatrixXd jacobian_;
+	const bool svd_ = true; // use SVD to compute manipulability
 
 	// weights for the goals
 	double w_manipulability_;
@@ -254,7 +231,6 @@ private:
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
 	std::vector<double> w_min_velocities_;
-	double w_min_acceleration_;
 
 	// hard limits goal parameters
 	// elbow
@@ -265,9 +241,7 @@ private:
 	// minimal velocity joint goal parameters
 	double time_step_;
 	std::vector<int> joint_indeces_;
-
-	// minimal acceleration goal parameters
-	std::vector<double> acceleration_limits_;
+	std::vector<double> previous_joint_positions_;
 
 public:
 	/**
@@ -307,17 +281,10 @@ public:
 	 * @brief Apply the minimal velocity joint goal, and sets the relative flag to true
 	 * @param time_step - the time step to compute the velocity
 	 * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
+	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
 	 * @param weights - the weights of the goal
 	 */
-	void applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces, std::vector<double> weights);
-
-	/**
-	 * @brief Apply the minimal acceleration goal, and sets the relative flag to true
-	 * @param acceleration_limits - the acceleration limits for all joints
-	 * @param time_step - the time step to compute the acceleration
-	 * @param weight - the weight of the goal (default = 1.0)
-	 */
-	void applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight = 1.0);
+	void applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces, std::vector<double> previous_joint_positions, std::vector<double> weights);
 
 	/**
 	 * @brief Evaluate the cost of the goal

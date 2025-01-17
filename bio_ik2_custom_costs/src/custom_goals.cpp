@@ -193,13 +193,16 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 /**
  * @brief Constructor for the MinimalVelocityJointGoal class
  * @param time_step - the time step to compute the velocity
- * @param joint_index - the index of the joint to keep the velocity under the maximum value
- * @param weight - the weight of the goal (default = 1.0)
+ * @param joint_indeces - the indeces of the joint to keep the velocity under the maximum value
+ * @param previous_joint_positions - the previous joint positions used to compute the velocity
+ * @param weights - the weights for the cost for each joint index
  */
-MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, int joint_index, double weight)
+MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, std::vector<int> joint_indeces,
+												   std::vector<double> previous_joint_positions, std::vector<double> weights)
 	: time_step_(time_step),
-	  joint_index_(joint_index) {
-	weight_ = weight;
+	  joint_indeces_(joint_indeces),
+	  previous_joint_positions_(previous_joint_positions),
+	  weights_(weights) {
 	secondary_ = true;
 }
 
@@ -211,38 +214,11 @@ MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, int joint_i
 double MinimalVelocityJointGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	auto &info = context.getRobotInfo();
-	double velocity_limit_ = info.getMaxVelocity(joint_index_);
-	double d = context.getProblemVariablePosition(joint_index_) - context.getProblemVariableInitialGuess(joint_index_);
-	double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
-	sum += vel_d * vel_d;
-
-	return sum * weight_;
-}
-
-/**
- * @brief Constructor for the MinimalAccelerationGoal class
- * @param acceleration_limits - the acceleration limits for all joints
- * @param time_step - the time step to compute the acceleration
- * @param weight - the weight of the goal (default = 1.0)
- */
-MinimalAccelerationGoal::MinimalAccelerationGoal(const std::vector<double> acceleration_limits, double time_step, double weight)
-	: acceleration_limits_(acceleration_limits),
-	  time_step_(time_step) {
-	weight_ = weight;
-	secondary_ = true;
-}
-
-/**
- * @brief Evaluate the cost of the goal
- * @param context - the goal context: extract information about robot state, joint model group, and robot model
- * @return the cost of the goal
- */
-double MinimalAccelerationGoal::evaluate(const GoalContext &context) const {
-	double sum = 0.0;
-	for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
-		double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
-		double acc_d = fmax(0.0, fabs(d) / pow(time_step_, 2) - acceleration_limits_[i]);
-		sum += acc_d * acc_d;
+	for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
+		double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
+		double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
+		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+		sum += vel_d * vel_d * weights_[i];
 	}
 
 	return sum * weight_;
@@ -259,7 +235,6 @@ MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
 	apply_hard_limits_goal_ = false;
 	apply_manipulability_goal_ = false;
 	apply_min_velocity_goal_ = false;
-	apply_min_acceleration_goal_ = false;
 }
 
 /**
@@ -310,27 +285,17 @@ void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian
  * @brief Apply the minimal velocity joint goal, and sets the relative flag to true
  * @param time_step - the time step to compute the velocity
  * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
+ * @param previous_joint_positions - the previous joint positions used to compute the velocity
  * @param weights - the weights of the goal
  */
 void MultipleGoalsAtOnce::applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces,
+													 std::vector<double> previous_joint_positions,
 													 std::vector<double> weights) {
 	time_step_ = time_step;
 	joint_indeces_ = joint_indeces;
+	previous_joint_positions_ = previous_joint_positions;
 	w_min_velocities_ = weights;
 	apply_min_velocity_goal_ = true;
-}
-
-/**
- * @brief Apply the minimal acceleration goal, and sets the relative flag to true
- * @param acceleration_limits - the acceleration limits for all joints
- * @param time_step - the time step to compute the acceleration
- * @param weight - the weight of the goal (default = 1.0)
- */
-void MultipleGoalsAtOnce::applyMinimalAccelerationCost(const std::vector<double> acceleration_limits, double time_step, double weight) {
-	acceleration_limits_ = acceleration_limits;
-	time_step_ = time_step;
-	w_min_acceleration_ = weight;
-	apply_min_acceleration_goal_ = true;
 }
 
 /**
@@ -375,7 +340,6 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		double condition_number = 0.0;
 		// double sum = 0.0;
 		double min_sv = 0.0;
-		bool svd_ = true;
 
 		if (svd_) {
 			// compute the singular values of the Jacobian
@@ -407,21 +371,9 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		auto &info = context.getRobotInfo();
 		for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 			double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
-			double d = context.getProblemVariablePosition(
-						   joint_indeces_[i]) -
-					   context.getProblemVariableInitialGuess(joint_indeces_[i]);
+			double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
 			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
 			sum += vel_d * vel_d * w_min_velocities_[i];
-		}
-	}
-
-	// minimal acceleration joints goal
-	if (apply_min_acceleration_goal_) {
-
-		for (size_t i = 0; i < context.getProblemVariableCount(); i++) {
-			double d = context.getProblemVariablePosition(i) - context.getProblemVariableInitialGuess(i);
-			double acc_d = fmax(0.0, fabs(d) / pow(time_step_, 2) - acceleration_limits_[i]);
-			sum += acc_d * acc_d * w_min_acceleration_;
 		}
 	}
 
