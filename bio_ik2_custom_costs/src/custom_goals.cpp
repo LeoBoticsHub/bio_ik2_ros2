@@ -217,7 +217,7 @@ double MinimalVelocityJointGoal::evaluate(const GoalContext &context) const {
 	for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 		double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 		double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
-		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * 0.5);
 		sum += vel_d * vel_d * weights_[i];
 	}
 
@@ -372,7 +372,7 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 			double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 			double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
-			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_);
+			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * 0.1);
 			sum += vel_d * vel_d * w_min_velocities_[i];
 		}
 	}
