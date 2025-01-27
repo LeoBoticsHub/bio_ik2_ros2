@@ -191,19 +191,28 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
 }
 
 /**
- * @brief Constructor for the MinimalVelocityJointGoal class
+ * @brief Constructor for the DesiredVelocityJointGoal class
  * @param time_step - the time step to compute the velocity
+ * @param scale - the scale to multiply the maximum velocity, in [0,1]
  * @param joint_indeces - the indeces of the joint to keep the velocity under the maximum value
  * @param previous_joint_positions - the previous joint positions used to compute the velocity
  * @param weights - the weights for the cost for each joint index
  */
-MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, std::vector<int> joint_indeces,
+DesiredVelocityJointGoal::DesiredVelocityJointGoal(double time_step, double scale ,std::vector<int> joint_indeces,
 												   std::vector<double> previous_joint_positions, std::vector<double> weights)
 	: time_step_(time_step),
+	  scale_(scale),
 	  joint_indeces_(joint_indeces),
 	  previous_joint_positions_(previous_joint_positions),
 	  weights_(weights) {
 	secondary_ = true;
+	// treshold the value of the scale parameter in [0,1]
+	if (scale_ < 0) {
+		scale_ = 0;
+	}
+	if (scale_ > 1) {
+		scale_ = 1;
+	}
 }
 
 /**
@@ -211,13 +220,14 @@ MinimalVelocityJointGoal::MinimalVelocityJointGoal(double time_step, std::vector
  * @param context - the goal context: extract information about robot state, joint model group, and robot model
  * @return the cost of the goal
  */
-double MinimalVelocityJointGoal::evaluate(const GoalContext &context) const {
+double DesiredVelocityJointGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	auto &info = context.getRobotInfo();
+	
 	for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 		double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 		double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
-		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * 0.5);
+		double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * scale_);
 		sum += vel_d * vel_d * weights_[i];
 	}
 
@@ -234,7 +244,7 @@ MultipleGoalsAtOnce::MultipleGoalsAtOnce() {
 	apply_minimal_displacement_goal_ = false;
 	apply_hard_limits_goal_ = false;
 	apply_manipulability_goal_ = false;
-	apply_min_velocity_goal_ = false;
+	apply_des_velocity_goal_ = false;
 }
 
 /**
@@ -282,20 +292,30 @@ void MultipleGoalsAtOnce::applyManipulabilityGoal(const Eigen::MatrixXd jacobian
 }
 
 /**
- * @brief Apply the minimal velocity joint goal, and sets the relative flag to true
+ * @brief Apply the desired velocity joint goal, and sets the relative flag to true
  * @param time_step - the time step to compute the velocity
+ * @param scale - the scale to multiply the maximum velocity, in [0,1]
  * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
  * @param previous_joint_positions - the previous joint positions used to compute the velocity
  * @param weights - the weights of the goal
  */
-void MultipleGoalsAtOnce::applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces,
+void MultipleGoalsAtOnce::applyDesiredVelocitiesGoal(double time_step, double scale, std::vector<int> joint_indeces,
 													 std::vector<double> previous_joint_positions,
 													 std::vector<double> weights) {
 	time_step_ = time_step;
+	scale_ = scale;
 	joint_indeces_ = joint_indeces;
 	previous_joint_positions_ = previous_joint_positions;
-	w_min_velocities_ = weights;
-	apply_min_velocity_goal_ = true;
+	w_des_velocities_ = weights;
+	apply_des_velocity_goal_ = true;
+
+	// treshold the value of the scale parameter in [0,1]
+	if (scale_ < 0) {
+		scale_ = 0;
+	}
+	if (scale_ > 1) {
+		scale_ = 1;
+	}
 }
 
 /**
@@ -366,14 +386,14 @@ double MultipleGoalsAtOnce::evaluate(const bio_ik::GoalContext &context) const {
 		}
 	}
 
-	// minimal velocity joint goal
-	if (apply_min_velocity_goal_) {
+	// desired velocity joint goal
+	if (apply_des_velocity_goal_) {
 		auto &info = context.getRobotInfo();
 		for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 			double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 			double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
-			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * 0.1);
-			sum += vel_d * vel_d * w_min_velocities_[i];
+			double vel_d = fmax(0.0, fabs(d) / time_step_ - velocity_limit_ * scale_);
+			sum += vel_d * vel_d * w_des_velocities_[i];
 		}
 	}
 

@@ -168,24 +168,26 @@ public:
 
 /**
  * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * MinimalVelocityJointGoal tries to keep the velocity of a joint under its joint velocity limit
+ * DesiredVelocityJointGoal tries to keep the velocity of a joint under its joint velocity limit
  */
-class MinimalVelocityJointGoal : public Goal {
+class DesiredVelocityJointGoal : public Goal {
 private:
 	const double time_step_;
+	double scale_;
 	const std::vector<int> joint_indeces_;
 	const std::vector<double> previous_joint_positions_;
 	const std::vector<double> weights_;
 
 public:
 	/**
-	 * @brief Constructor for the MinimalVelocityJointGoal class
+	 * @brief Constructor for the DesiredVelocityJointGoal class
 	 * @param time_step - the time step to compute the velocity
+	 * @param scale - the scale to multiply the maximum velocity, in [0,1]
 	 * @param joint_indeces - the indeces of the joint to keep the velocity under the maximum value
 	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
 	 * @param weights - the weights for the cost for each joint index
 	 */
-	MinimalVelocityJointGoal(double time_step, std::vector<int> joint_indeces,
+	DesiredVelocityJointGoal(double time_step, double scale ,std::vector<int> joint_indeces,
 							 std::vector<double> previous_joint_positions, std::vector<double> weights);
 
 	/**
@@ -205,8 +207,7 @@ public:
  * 	- linear cost to prefer solutions in the joints center and avoid joint limits
  * 	- cost to enforce virtual hard limits on one joint, to prevent strange solutions
  * 	- cost to enable the manipulability goal
- * 	- cost to keep velocity of a joint under maximum value
- * 	- cost to keep joints acceleration under maximum value
+ * 	- cost to keep velocity of a joint at a desired value
  */
 class MultipleGoalsAtOnce : public Goal {
 private:
@@ -219,7 +220,7 @@ private:
 	// cost to enable the manipulability goal
 	bool apply_manipulability_goal_;
 	// cost to keep velocity of a joint under maximum value
-	bool apply_min_velocity_goal_;
+	bool apply_des_velocity_goal_;
 
 	// Jacobian matrix for the manipulability goal
 	Eigen::MatrixXd jacobian_;
@@ -230,7 +231,7 @@ private:
 	double w_minimum_displacement_;
 	double w_avoid_joint_limits_;
 	double w_hard_limits_;
-	std::vector<double> w_min_velocities_;
+	std::vector<double> w_des_velocities_;
 
 	// hard limits goal parameters
 	// elbow
@@ -238,8 +239,9 @@ private:
 	double upper_limit_;
 	int limited_joint_index_;
 
-	// minimal velocity joint goal parameters
+	// desired velocity joint goal parameters
 	double time_step_;
+	double scale_;
 	std::vector<int> joint_indeces_;
 	std::vector<double> previous_joint_positions_;
 
@@ -278,13 +280,14 @@ public:
 	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
 
 	/**
-	 * @brief Apply the minimal velocity joint goal, and sets the relative flag to true
+	 * @brief Apply the desired velocity joint goal, and sets the relative flag to true
 	 * @param time_step - the time step to compute the velocity
+	 * @param scale - the scale to multiply the maximum velocity, in [0,1]
 	 * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
 	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
 	 * @param weights - the weights of the goal
 	 */
-	void applyMinimalVelocitiesGoal(double time_step, std::vector<int> joint_indeces, std::vector<double> previous_joint_positions, std::vector<double> weights);
+	void applyDesiredVelocitiesGoal(double time_step, double scale, std::vector<int> joint_indeces, std::vector<double> previous_joint_positions, std::vector<double> weights);
 
 	/**
 	 * @brief Evaluate the cost of the goal
