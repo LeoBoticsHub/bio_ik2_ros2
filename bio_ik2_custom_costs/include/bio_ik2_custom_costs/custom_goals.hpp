@@ -101,30 +101,30 @@ public:
 	double evaluate(const GoalContext &context) const;
 };
 
-//
+
 /**
  * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * ConfigureElbowGoal tries to keep the elbow joint in the center half of the specified joint limits
- * If the elbow joint is in the center of the specified joint limits ((upper_limit_ + lower_limit_) * 0.5) , the cost is 0
- * If the elbow joint is at the upper or lower limit, the cost is proportional to the distance from the center
+ * HardJointLimitsGoal tries to keep a joint of the robot in the center half of the specified joint limits
+ * If the joint is in the center of the specified joint limits ((upper_limit_ + lower_limit_) * 0.5) , the cost is 0
+ * If the joint is at the upper or lower limit, the cost is proportional to the distance from the center
  * The result is double and reduced by the half-span of the joint's range ((upper_limit_ - lower_limit_) * 0.5).
  * This operation centers the deviation around zero.
  */
-class ConfigureElbowGoal : public Goal {
+class HardJointLimitsGoal : public Goal {
 private:
 	const double lower_limit_;
 	const double upper_limit_;
-	const int joint_elbow_index_;
+	const int joint_index_;
 
 public:
 	/**
-	 * @brief Constructor for the ConfigureElbowGoal class
-	 * @param joint_elbow_index - the index of the elbow joint
-	 * @param lower_limit - the lower limit of the elbow joint
-	 * @param upper_limit - the upper limit of the elbow joint
+	 * @brief Constructor for the HardJointLimitsGoal class
+	 * @param joint_index - the index of the joint
+	 * @param lower_limit - the lower limit of the joint
+	 * @param upper_limit - the upper limit of the joint
 	 * @param weight - the weight of the goal (default = 1.0)
 	 */
-	ConfigureElbowGoal(const int joint_elbow_index, const double lower_limit, const double upper_limit, double weight = 1.0);
+	HardJointLimitsGoal(const int joint_index, const double lower_limit, const double upper_limit, double weight = 1.0);
 
 	/**
 	 * @brief Evaluate the cost of the goal

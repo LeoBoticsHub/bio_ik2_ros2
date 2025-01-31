@@ -109,17 +109,17 @@ double MinimalDisplacementGoalSeed::evaluate(const GoalContext &context) const {
 }
 
 /**
- * @brief Constructor for the ConfigureElbowGoal class
- * @param joint_elbow_index - the index of the elbow joint
- * @param lower_limit - the lower limit of the elbow joint
- * @param upper_limit - the upper limit of the elbow joint
+ * @brief Constructor for the HardJointLimitsGoal class
+ * @param joint_index - the index of the joint
+ * @param lower_limit - the lower limit of the joint
+ * @param upper_limit - the upper limit of the joint
  * @param weight - the weight of the goal (default = 1.0)
  */
-ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower_limit,
-									   double upper_limit, double weight)
+HardJointLimitsGoal::HardJointLimitsGoal(const int joint_index, const double lower_limit,
+										 const double upper_limit, double weight)
 	: lower_limit_(lower_limit),
 	  upper_limit_(upper_limit),
-	  joint_elbow_index_(joint_elbow_index) {
+	  joint_index_(joint_index) {
 	secondary_ = true;
 	weight_ = weight;
 }
@@ -129,10 +129,10 @@ ConfigureElbowGoal::ConfigureElbowGoal(const int joint_elbow_index, double lower
  * @param context - the goal context: extract information about robot state, joint model group, and robot model
  * @return the cost of the goal
  */
-double ConfigureElbowGoal::evaluate(const GoalContext &context) const {
+double HardJointLimitsGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 
-	double d = context.getProblemVariablePosition(joint_elbow_index_) - (upper_limit_ + lower_limit_) * 0.5;
+	double d = context.getProblemVariablePosition(joint_index_) - (upper_limit_ + lower_limit_) * 0.5;
 	d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
 	sum += d * d;
 
@@ -198,7 +198,7 @@ double MaxManipulabilityGoal::evaluate(const GoalContext & /*context*/) const {
  * @param previous_joint_positions - the previous joint positions used to compute the velocity
  * @param weights - the weights for the cost for each joint index
  */
-DesiredVelocityJointGoal::DesiredVelocityJointGoal(double time_step, double scale ,std::vector<int> joint_indeces,
+DesiredVelocityJointGoal::DesiredVelocityJointGoal(double time_step, double scale, std::vector<int> joint_indeces,
 												   std::vector<double> previous_joint_positions, std::vector<double> weights)
 	: time_step_(time_step),
 	  scale_(scale),
@@ -223,7 +223,7 @@ DesiredVelocityJointGoal::DesiredVelocityJointGoal(double time_step, double scal
 double DesiredVelocityJointGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 	auto &info = context.getRobotInfo();
-	
+
 	for (unsigned int i = 0; i < joint_indeces_.size(); i++) {
 		double velocity_limit_ = info.getMaxVelocity(joint_indeces_[i]);
 		double d = context.getProblemVariablePosition(joint_indeces_[i]) - previous_joint_positions_[i];
