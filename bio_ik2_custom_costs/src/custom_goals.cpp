@@ -133,7 +133,11 @@ double HardJointLimitsGoal::evaluate(const GoalContext &context) const {
 	double sum = 0.0;
 
 	double d = context.getProblemVariablePosition(joint_index_) - (upper_limit_ + lower_limit_) * 0.5;
-	d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
+	if (d > (upper_limit_ - lower_limit_) * 0.5) {
+		d = 100.0;
+	} else {
+		d = fmax(0.0, fabs(d) * 2.0 - (upper_limit_ - lower_limit_) * 0.5);
+	}
 	sum += d * d;
 
 	return sum * weight_;
