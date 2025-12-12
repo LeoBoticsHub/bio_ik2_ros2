@@ -33,8 +33,9 @@ include_directories(
 )
 
 # Add libraries
-add_library(custom_goals 
-    src/custom_goals.cpp include/${PROJECT_NAME}/custom_goals.hpp
+add_library(custom_goals
+    STATIC
+    src/custom_goals.cpp
 )
 
 # Link libraries
