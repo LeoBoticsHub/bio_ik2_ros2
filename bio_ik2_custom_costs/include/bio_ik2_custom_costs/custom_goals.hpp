@@ -20,11 +20,7 @@
  *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
  *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
@@ -38,77 +34,49 @@
 #include "bio_ik/goal.h"
 #include "bio_ik/robot_info.h"
 
+#include <vector>
+
 namespace bio_ik {
 
 /**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * 		executes a function that returns a cost value for a given pose, with respect to a given seed state
+ * @brief Wraps an arbitrary MoveIt IKCostFn as a BioIK Goal.
+ *        Useful for injecting standard MoveIt cost functions into the BioIK pipeline.
  */
 class IKCostFnGoalSeed : public Goal {
-
 	const geometry_msgs::msg::Pose pose_;
 	const kinematics::KinematicsBase::IKCostFn function_;
 	const moveit::core::RobotModelConstPtr robot_model_;
 	const std::vector<double> seed_state_;
 
 public:
-	/**
-	 * @brief constructor for the IKCostFnGoalSeed class
-	 * @param pose - the target pose
-	 * @param function - the cost function to be evaluated for a candidate IK solution
-	 * @param robot_model - the robot model
-	 * @param seed_state - a given seed state to evaluate the cost function with
-	 * @param weight - the weight of the goal (default = 1.0)
-	 */
 	IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
 					 const kinematics::KinematicsBase::IKCostFn &function,
 					 const moveit::core::RobotModelConstPtr &robot_model,
 					 const std::vector<double> &seed_state,
 					 double weight = 1.0);
 
-	/**
-	 * @brief function to evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
 	double evaluate(const GoalContext &context) const override;
 };
 
 /**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * 		minimizes the displacement of the robot's joints from a given seed state
+ * @brief Minimises the sum of squared joint displacements from a fixed seed state.
  */
 class MinimalDisplacementGoalSeed : public Goal {
 private:
-	// fixed seed state
 	const std::vector<double> seed_state_;
 
 public:
-	/**
-	 * @brief constructor for the MinimalDisplacementGoalSeed class
-	 * 		gives high cost to solutions that are far from the seed state
-	 * @param seed_state - the seed state to minimize the displacement from
-	 * @param weight - the weight of the goal (default = 1.0)
-	 * @param secondary - the secondary goal flag (default = true)
-	 */
-	MinimalDisplacementGoalSeed(const std::vector<double> &seed_state, double weight = 1.0, bool secondary = true);
+	MinimalDisplacementGoalSeed(const std::vector<double> &seed_state,
+								double weight = 1.0,
+								bool secondary = true);
 
-	/**
-	 * @brief function to evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
-	double evaluate(const GoalContext &context) const;
+	double evaluate(const GoalContext &context) const override;
 };
 
-
 /**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * HardJointLimitsGoal tries to keep a joint of the robot in the center half of the specified joint limits
- * If the joint is in the center of the specified joint limits ((upper_limit_ + lower_limit_) * 0.5) , the cost is 0
- * If the joint is at the upper or lower limit, the cost is proportional to the distance from the center
- * The result is double and reduced by the half-span of the joint's range ((upper_limit_ - lower_limit_) * 0.5).
- * This operation centers the deviation around zero.
+ * @brief Keeps a joint inside a soft virtual range centred on
+ *        (upper_limit + lower_limit) / 2.
+ *        Cost grows quadratically once the joint leaves the inner half of the range.
  */
 class HardJointLimitsGoal : public Goal {
 private:
@@ -118,185 +86,160 @@ private:
 
 public:
 	/**
-	 * @brief Constructor for the HardJointLimitsGoal class
-	 * @param joint_index - the index of the joint
-	 * @param lower_limit - the lower limit of the joint
-	 * @param upper_limit - the upper limit of the joint
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @param joint_index  Index inside the IK problem variables.
+	 * @param lower_limit  Lower bound of the allowed range [rad].
+	 * @param upper_limit  Upper bound of the allowed range [rad].
+	 * @param weight       Goal weight (default 1.0).
 	 */
-	HardJointLimitsGoal(const int joint_index, const double lower_limit, const double upper_limit, double weight = 1.0);
+	HardJointLimitsGoal(int joint_index, double lower_limit, double upper_limit,
+						double weight = 1.0);
 
-	/**
-	 * @brief Evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
-	double evaluate(const GoalContext &context) const;
+	double evaluate(const GoalContext &context) const override;
 };
 
 /**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * MaxManipulabilityGoal tries to maximize the manipulability
- * if svd == true, the singular value decomposition is used to compute the manipulability:
- * 		Compute the the condition number (The inverse of the condition number is a measure of the manipulability)
- * 		As this cost will be minimized and we want to maximize manipulability, we return the condition number*weight
- * 		A high inverse of the condition number means a high manipulability -> a low condition number implies a high manipulability
- * if svd == false, the manipulability is computed as the square root of the determinant of the Jacobian times its transpose
- * 		its inverse is minimized
+ * @brief Pushes the slidekit joint to minimise the 1-D error on the slide axis:
+ *
+ *   cost = ( clamp(point_x, clamp_min, clamp_max) - q_slidekit - offset )^2 * weight
+ *
+ * point_x must be refreshed at every IK call by creating a new instance.
  */
-class MaxManipulabilityGoal : public Goal {
+class SlidekitFollowXGoal : public Goal {
 private:
-	const Eigen::MatrixXd jacobian_;
-	bool svd_;
+	const int joint_index_;
+	const double point_x_;
+	const double offset_;
+	const double clamp_min_;
+	const double clamp_max_;
 
 public:
 	/**
-	 * @brief Constructor for the MaxManipulabilityGoal class
-	 * @param jacobian - the Jacobian matrix obtained from the robot state
-	 * @param svd - flag to use the singular value decomposition to compute the manipulability
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @param joint_index  Index of the slidekit joint (usually 0).
+	 * @param point_x      X-coordinate of the current IK target.
+	 * @param offset       Fixed x-offset between slidekit flange and arm centre [m].
+	 * @param clamp_min    Minimum allowed reference x [m].
+	 * @param clamp_max    Maximum allowed reference x [m].
+	 * @param weight       Goal weight (default 1.0).
 	 */
-	MaxManipulabilityGoal(const Eigen::MatrixXd jacobian, bool svd, double weight = 1.0);
+	SlidekitFollowXGoal(int joint_index, double point_x,
+						double offset, double clamp_min, double clamp_max,
+						double weight = 1.0);
 
-	/**
-	 * @brief Evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
-	double evaluate(const GoalContext &context) const;
+	double evaluate(const GoalContext &context) const override;
 };
 
 /**
- * @brief class defining a new Goal supported by BioIkKinematicsQueryOptions
- * DesiredVelocityJointGoal tries to keep the velocity of a joint under its joint velocity limit
+ * @brief Maintains a constant 2-D distance between the slidekit flange and the
+ *        end-effector target, measured in the XY plane of the slide frame:
+ *
+ *   actual_dist = sqrt( (point_x - q_slidekit - offset_x)^2 + point_y^2 )
+ *   cost        = ( actual_dist - d_target )^2 * weight
+ *
+ * Set weight = 0 to disable without removing the goal from the pipeline.
+ * Both point_x and point_y must be refreshed at every IK call by creating a new instance.
  */
-class DesiredVelocityJointGoal : public Goal {
+class SlidekitConstantDistanceGoal : public Goal {
 private:
-	const double time_step_;
-	double scale_;
-	const std::vector<int> joint_indeces_;
-	const std::vector<double> previous_joint_positions_;
-	const std::vector<double> weights_;
+	const int joint_index_;
+	const double point_x_;
+	const double point_y_;
+	const double offset_x_;
+	const double d_target_;
 
 public:
 	/**
-	 * @brief Constructor for the DesiredVelocityJointGoal class
-	 * @param time_step - the time step to compute the velocity
-	 * @param scale - the scale to multiply the maximum velocity, in [0,1]
-	 * @param joint_indeces - the indeces of the joint to keep the velocity under the maximum value
-	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
-	 * @param weights - the weights for the cost for each joint index
+	 * @param joint_index  Index of the slidekit joint (usually 0).
+	 * @param point_x      X-coordinate of the current IK target.
+	 * @param point_y      Y-coordinate of the current IK target.
+	 * @param offset_x     Fixed x-offset between slidekit flange and arm centre [m].
+	 * @param d_target     Desired constant distance (flange → EE) [m].
+	 * @param weight       Goal weight (default 1.0).  Set to 0 to disable.
 	 */
-	DesiredVelocityJointGoal(double time_step, double scale ,std::vector<int> joint_indeces,
-							 std::vector<double> previous_joint_positions, std::vector<double> weights);
+	SlidekitConstantDistanceGoal(int joint_index,
+								 double point_x, double point_y,
+								 double offset_x, double d_target,
+								 double weight = 1.0);
 
-	/**
-	 * @brief Evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
-	double evaluate(const GoalContext &context) const;
+	double evaluate(const GoalContext &context) const override;
 };
 
 /**
- * @brief This goal combines multiple goals at once
- * Unique goal that computes the total sum of the costs of different cost functions with their respective weights
- * The cost of the goals is computed by the evaluate function
- * The goal can be configured to apply the following goals:
- * 	- minimal displacement goal with respect to the given seed (current robot state)
- * 	- linear cost to prefer solutions in the joints center and avoid joint limits
- * 	- cost to enforce virtual hard limits on one joint, to prevent strange solutions
- * 	- cost to enable the manipulability goal
- * 	- cost to keep velocity of a joint at a desired value
+ * @brief Combines multiple secondary goals into a single BioIK Goal object.
+ *
+ * Sub-goals enabled via apply*() methods:
+ *   - Minimal displacement from initial guess.
+ *   - Hard virtual joint limits for one or more joints.
+ *   - Slidekit follow-X (1-D error on the slide axis).
+ *   - Slidekit constant 2-D distance (XY-plane distance from flange to EE target).
  */
 class MultipleGoalsAtOnce : public Goal {
 private:
-	// minimal displacement goal with respect to the given seed (= current robot state)
-	bool apply_minimal_displacement_goal_;
-	// linear cost to prefer solutions in the joints center and avoid joint limits
-	bool apply_avoid_joint_limits_goal_;
-	// cost to enforce virtual hard limits on one joint, to prevent strange solutions
-	bool apply_hard_limits_goal_;
-	// cost to enable the manipulability goal
-	bool apply_manipulability_goal_;
-	// cost to keep velocity of a joint under maximum value
-	bool apply_des_velocity_goal_;
+	// ---- minimal displacement ----------------------------------------
+	bool apply_minimal_displacement_goal_ = false;
+	double w_minimum_displacement_ = 0.0;
 
-	// Jacobian matrix for the manipulability goal
-	Eigen::MatrixXd jacobian_;
-	const bool svd_ = true; // use SVD to compute manipulability
+	// ---- hard joint limits (one entry per joint) ---------------------
+	bool apply_hard_limits_goal_ = false;
+	struct HardLimitEntry {
+		double lower_limit;
+		double upper_limit;
+		int joint_index;
+		double weight;
+	};
+	std::vector<HardLimitEntry> hard_limit_entries_;
 
-	// weights for the goals
-	double w_manipulability_;
-	double w_minimum_displacement_;
-	double w_avoid_joint_limits_;
-	double w_hard_limits_;
-	std::vector<double> w_des_velocities_;
+	// ---- slidekit follow-X -------------------------------------------
+	bool apply_slidekit_follow_x_goal_ = false;
+	double w_slidekit_follow_x_ = 0.0;
+	int slidekit_follow_x_joint_index_ = 0;
+	double follow_x_point_x_ = 0.0;
+	double follow_x_offset_ = 0.0;
+	double follow_x_clamp_min_ = 0.0;
+	double follow_x_clamp_max_ = 0.0;
 
-	// hard limits goal parameters
-	// elbow
-	double lower_limit_;
-	double upper_limit_;
-	int limited_joint_index_;
-
-	// desired velocity joint goal parameters
-	double time_step_;
-	double scale_;
-	std::vector<int> joint_indeces_;
-	std::vector<double> previous_joint_positions_;
+	// ---- slidekit constant distance ----------------------------------
+	bool apply_slidekit_constant_distance_goal_ = false;
+	double w_slidekit_constant_distance_ = 0.0;
+	int slidekit_cd_joint_index_ = 0;
+	double cd_point_x_ = 0.0;
+	double cd_point_y_ = 0.0;
+	double cd_offset_x_ = 0.0;
+	double cd_d_target_ = 0.0;
 
 public:
-	/**
-	 * @brief Constructor for the MultipleGoalsAtOnce class
-	 */
 	MultipleGoalsAtOnce();
 
-	/**
-	 * @brief Apply the minimal displacement goal, and sets the relative flag to true
-	 * @param weight - the weight of the goal (default = 1.0)
-	 */
+	/** Enable minimal displacement from the initial guess. */
 	void applyMinimalDisplacementGoal(double weight = 1.0);
 
 	/**
-	 * @brief Apply the avoid joint limits goal, and sets the relative flag to true
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @brief Add a hard-limits entry for one joint.
+	 *        Call once per joint; entries accumulate (not overwritten on repeated calls).
 	 */
-	void applyAvoidJointLimitsGoal(double weight = 1.0);
+	void applyHardLimitsGoal(double lower_limit, double upper_limit,
+							 int joint_index, double weight = 1.0);
 
 	/**
-	 * @brief Apply the hard limits goal, and sets the relative flag to true
-	 * @param lower_limit - the lower limit of the joint
-	 * @param upper_limit - the upper limit of the joint
-	 * @param joint_index - the index of the joint
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @brief Enable/update the slidekit follow-X goal.
+	 *        Must be called every IK solve so that point_x reflects the current target.
 	 */
-	void applyHardLimitsGoal(double lower_limit, double upper_limit, int joint_index, double weight = 1.0);
+	void applySlidekitFollowXGoal(int joint_index, double point_x,
+								  double offset, double clamp_min, double clamp_max,
+								  double weight = 1.0);
 
 	/**
-	 * @brief Apply the manipulability goal, and sets the relative flag to true
-	 * @param jacobian - the Jacobian matrix obtained from the robot state
-	 * @param weight - the weight of the goal (default = 1.0)
+	 * @brief Enable/update the slidekit constant-distance goal.
+	 *        Must be called every IK solve so that point_x / point_y reflect the current target.
+	 *        Set weight = 0 to disable without removing the goal from the pipeline.
 	 */
-	void applyManipulabilityGoal(const Eigen::MatrixXd jacobian, double weight = 1.0);
+	void applySlidekitConstantDistanceGoal(int joint_index,
+										   double point_x, double point_y,
+										   double offset_x, double d_target,
+										   double weight = 1.0);
 
-	/**
-	 * @brief Apply the desired velocity joint goal, and sets the relative flag to true
-	 * @param time_step - the time step to compute the velocity
-	 * @param scale - the scale to multiply the maximum velocity, in [0,1]
-	 * @param joint_indeces - the indices of the joints to keep the velocity under the maximum value
-	 * @param previous_joint_positions - the previous joint positions used to compute the velocity
-	 * @param weights - the weights of the goal
-	 */
-	void applyDesiredVelocitiesGoal(double time_step, double scale, std::vector<int> joint_indeces, std::vector<double> previous_joint_positions, std::vector<double> weights);
-
-	/**
-	 * @brief Evaluate the cost of the goal
-	 * @param context - the goal context: extract information about robot state, joint model group, and robot model
-	 * @return the cost of the goal
-	 */
 	double evaluate(const bio_ik::GoalContext &context) const override;
 };
 
 } // namespace bio_ik
 
-#endif
+#endif // CUSTOM_GOALS_HPP
