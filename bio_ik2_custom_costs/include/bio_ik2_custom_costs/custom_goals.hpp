@@ -39,138 +39,13 @@
 namespace bio_ik {
 
 /**
- * @brief Wraps an arbitrary MoveIt IKCostFn as a BioIK Goal.
- *        Useful for injecting standard MoveIt cost functions into the BioIK pipeline.
- */
-class IKCostFnGoalSeed : public Goal {
-	const geometry_msgs::msg::Pose pose_;
-	const kinematics::KinematicsBase::IKCostFn function_;
-	const moveit::core::RobotModelConstPtr robot_model_;
-	const std::vector<double> seed_state_;
-
-public:
-	IKCostFnGoalSeed(const geometry_msgs::msg::Pose &pose,
-					 const kinematics::KinematicsBase::IKCostFn &function,
-					 const moveit::core::RobotModelConstPtr &robot_model,
-					 const std::vector<double> &seed_state,
-					 double weight = 1.0);
-
-	double evaluate(const GoalContext &context) const override;
-};
-
-/**
- * @brief Minimises the sum of squared joint displacements from a fixed seed state.
- */
-class MinimalDisplacementGoalSeed : public Goal {
-private:
-	const std::vector<double> seed_state_;
-
-public:
-	MinimalDisplacementGoalSeed(const std::vector<double> &seed_state,
-								double weight = 1.0,
-								bool secondary = true);
-
-	double evaluate(const GoalContext &context) const override;
-};
-
-/**
- * @brief Keeps a joint inside a soft virtual range centred on
- *        (upper_limit + lower_limit) / 2.
- *        Cost grows quadratically once the joint leaves the inner half of the range.
- */
-class HardJointLimitsGoal : public Goal {
-private:
-	const double lower_limit_;
-	const double upper_limit_;
-	const int joint_index_;
-
-public:
-	/**
-	 * @param joint_index  Index inside the IK problem variables.
-	 * @param lower_limit  Lower bound of the allowed range [rad].
-	 * @param upper_limit  Upper bound of the allowed range [rad].
-	 * @param weight       Goal weight (default 1.0).
-	 */
-	HardJointLimitsGoal(int joint_index, double lower_limit, double upper_limit,
-						double weight = 1.0);
-
-	double evaluate(const GoalContext &context) const override;
-};
-
-/**
- * @brief Pushes the slidekit joint to minimise the 1-D error on the slide axis:
- *
- *   cost = ( clamp(point_x, clamp_min, clamp_max) - q_slidekit - offset )^2 * weight
- *
- * point_x must be refreshed at every IK call by creating a new instance.
- */
-class SlidekitFollowXGoal : public Goal {
-private:
-	const int joint_index_;
-	const double point_x_;
-	const double offset_;
-	const double clamp_min_;
-	const double clamp_max_;
-
-public:
-	/**
-	 * @param joint_index  Index of the slidekit joint (usually 0).
-	 * @param point_x      X-coordinate of the current IK target.
-	 * @param offset       Fixed x-offset between slidekit flange and arm centre [m].
-	 * @param clamp_min    Minimum allowed reference x [m].
-	 * @param clamp_max    Maximum allowed reference x [m].
-	 * @param weight       Goal weight (default 1.0).
-	 */
-	SlidekitFollowXGoal(int joint_index, double point_x,
-						double offset, double clamp_min, double clamp_max,
-						double weight = 1.0);
-
-	double evaluate(const GoalContext &context) const override;
-};
-
-/**
- * @brief Maintains a constant 2-D distance between the slidekit flange and the
- *        end-effector target, measured in the XY plane of the slide frame:
- *
- *   actual_dist = sqrt( (point_x - q_slidekit - offset_x)^2 + point_y^2 )
- *   cost        = ( actual_dist - d_target )^2 * weight
- *
- * Set weight = 0 to disable without removing the goal from the pipeline.
- * Both point_x and point_y must be refreshed at every IK call by creating a new instance.
- */
-class SlidekitConstantDistanceGoal : public Goal {
-private:
-	const int joint_index_;
-	const double point_x_;
-	const double point_y_;
-	const double offset_x_;
-	const double d_target_;
-
-public:
-	/**
-	 * @param joint_index  Index of the slidekit joint (usually 0).
-	 * @param point_x      X-coordinate of the current IK target.
-	 * @param point_y      Y-coordinate of the current IK target.
-	 * @param offset_x     Fixed x-offset between slidekit flange and arm centre [m].
-	 * @param d_target     Desired constant distance (flange → EE) [m].
-	 * @param weight       Goal weight (default 1.0).  Set to 0 to disable.
-	 */
-	SlidekitConstantDistanceGoal(int joint_index,
-								 double point_x, double point_y,
-								 double offset_x, double d_target,
-								 double weight = 1.0);
-
-	double evaluate(const GoalContext &context) const override;
-};
-
-/**
  * @brief Combines multiple secondary goals into a single BioIK Goal object.
  *
  * Sub-goals enabled via apply*() methods:
  *   - Minimal displacement from initial guess.
- *   - Hard virtual joint limits for one or more joints.
+ *   - Soft virtual joint limits for one or more joints.
  *   - Slidekit follow-X (1-D error on the slide axis).
- *   - Slidekit constant 2-D distance (XY-plane distance from flange to EE target).
+ *   - Slidekit constant 2-D distance (XY-plane distance from slidekit-flange to EE target).
  */
 class MultipleGoalsAtOnce : public Goal {
 private:
@@ -178,15 +53,15 @@ private:
 	bool apply_minimal_displacement_goal_ = false;
 	double w_minimum_displacement_ = 0.0;
 
-	// ---- hard joint limits (one entry per joint) ---------------------
-	bool apply_hard_limits_goal_ = false;
-	struct HardLimitEntry {
+	// ---- soft joint limits (one entry per joint) ---------------------
+	bool apply_soft_limits_goal_ = false;
+	struct SoftLimitEntry {
 		double lower_limit;
 		double upper_limit;
 		int joint_index;
 		double weight;
 	};
-	std::vector<HardLimitEntry> hard_limit_entries_;
+	std::vector<SoftLimitEntry> soft_limit_entries_;
 
 	// ---- slidekit follow-X -------------------------------------------
 	bool apply_slidekit_follow_x_goal_ = false;
@@ -213,10 +88,10 @@ public:
 	void applyMinimalDisplacementGoal(double weight = 1.0);
 
 	/**
-	 * @brief Add a hard-limits entry for one joint.
+	 * @brief Add a soft-limits entry for one joint.
 	 *        Call once per joint; entries accumulate (not overwritten on repeated calls).
 	 */
-	void applyHardLimitsGoal(double lower_limit, double upper_limit,
+	void applySoftLimitsGoal(double lower_limit, double upper_limit,
 							 int joint_index, double weight = 1.0);
 
 	/**
